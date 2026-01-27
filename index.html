@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>MUI Jakarta - Pelayan Ummat</title>
+    
+    <!-- PWA & Mobile Meta -->
+    <meta name="theme-color" content="#00827f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MUI Jakarta">
+    <link rel="apple-touch-icon" href="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png">
+    <link rel="manifest" href="/manifest.json">
+
+    <!-- Import Map to resolve bare module specifiers in the browser -->
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@19?dev",
+    "react-dom": "https://esm.sh/react-dom@19?dev",
+    "react-dom/client": "https://esm.sh/react-dom@19/client?dev",
+    "react/jsx-runtime": "https://esm.sh/react@19/jsx-runtime?dev",
+    "lucide-react": "https://esm.sh/lucide-react",
+    "@google/genai": "https://esm.sh/@google/genai",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fcfcfc;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            overflow-x: hidden;
+        }
+        .bg-mui-teal {
+            background-color: #00827f;
+        }
+        .islamic-bg {
+            background-image: url("https://static.vecteezy.com/system/resources/thumbnails/006/762/753/small_2x/islamic-background-for-ramadan-or-eid-vector.jpg");
+            background-size: cover;
+            background-position: center;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 0px;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
