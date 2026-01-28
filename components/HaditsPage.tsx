@@ -7,7 +7,8 @@ import {
   Book, 
   Share2, 
   Copy, 
-  CircleAlert
+  CircleAlert,
+  RefreshCw
 } from 'lucide-react';
 
 interface HadithBook {
@@ -35,14 +36,13 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
-  // Slug disesuaikan dengan API hadis-api-id.vercel.app
   const staticBooks: HadithBook[] = [
     { name: "Imam Bukhari", slug: "bukhari", total: 7008 },
     { name: "Imam Muslim", slug: "muslim", total: 5362 },
     { name: "Imam Abu Daud", slug: "abu-dawud", total: 4419 },
     { name: "Imam Tirmidzi", slug: "tirmidzi", total: 3625 },
     { name: "Imam Nasai", slug: "nasai", total: 5364 },
-    { name: "Imam Ibnu Majah", slug: "ibnu-majah", total: 4285 }, // Updated slug from 'ibn-majah' to 'ibnu-majah'
+    { name: "Imam Ibnu Majah", slug: "ibnu-majah", total: 4285 }, 
     { name: "Imam Malik", slug: "malik", total: 1594 },
     { name: "Imam Ahmad", slug: "ahmad", total: 26363 },
     { name: "Imam Darimi", slug: "darimi", total: 3367 },
@@ -51,33 +51,70 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
   const fetchHadiths = async (slug: string, p: number = 1) => {
     setLoadingDetail(true);
     setError(null);
-    try {
-      // Menggunakan API baru yang lebih stabil
-      const response = await fetch(`https://hadis-api-id.vercel.app/hadith/${slug}?page=${p}&limit=20`);
-      
-      if (!response.ok) {
-        throw new Error("Gagal mengambil data dari server.");
-      }
-      
-      const result = await response.json();
-      
-      // Adaptasi response API baru
-      if (result.items && Array.isArray(result.items)) {
-        const items = result.items.map((item: any) => ({
-          number: item.number,
-          arab: item.arab,
-          id: item.id
-        }));
+    let success = false;
+    let newItems: HadithItem[] = [];
 
-        if (p === 1) setHadiths(items);
-        else setHadiths(prev => [...prev, ...items]);
+    try {
+      // ---------------------------------------------------------
+      // PERCOBAAN 1: API Utama (hadis-api-id.vercel.app)
+      // ---------------------------------------------------------
+      try {
+        const response = await fetch(`https://hadis-api-id.vercel.app/hadith/${slug}?page=${p}&limit=20`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.items && Array.isArray(result.items)) {
+            newItems = result.items.map((item: any) => ({
+              number: item.number,
+              arab: item.arab,
+              id: item.id
+            }));
+            success = true;
+          }
+        }
+      } catch (err) {
+        console.warn("API Utama gagal, mencoba server cadangan...", err);
+      }
+
+      // ---------------------------------------------------------
+      // PERCOBAAN 2: API Cadangan (api.hadith.gading.dev)
+      // ---------------------------------------------------------
+      if (!success) {
+        try {
+          // Menghitung range untuk API Gading (karena pakai range, bukan page)
+          const limit = 20;
+          const start = (p - 1) * limit + 1;
+          const end = p * limit;
+          
+          const response = await fetch(`https://api.hadith.gading.dev/books/${slug}?range=${start}-${end}`);
+          if (response.ok) {
+            const result = await response.json();
+            if (result.data && result.data.hadiths) {
+              newItems = result.data.hadiths.map((item: any) => ({
+                number: item.number,
+                arab: item.arab,
+                id: item.id
+              }));
+              success = true;
+            }
+          }
+        } catch (err) {
+           console.warn("API Cadangan juga gagal.", err);
+        }
+      }
+
+      // ---------------------------------------------------------
+      // HASIL AKHIR
+      // ---------------------------------------------------------
+      if (success) {
+        if (p === 1) setHadiths(newItems);
+        else setHadiths(prev => [...prev, ...newItems]);
       } else {
-         throw new Error("Format data hadits tidak dikenali.");
+        throw new Error("Gagal mengambil data dari semua server.");
       }
 
     } catch (err: any) {
       console.error('Hadith Fetch Error:', err);
-      setError("Maaf, terjadi kendala saat mengambil data hadits. Server mungkin sedang sibuk.");
+      setError("Maaf, terjadi kendala saat mengambil data hadits. Silakan coba lagi nanti.");
     } finally {
       setLoadingDetail(false);
     }
@@ -172,17 +209,18 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
           <div className="space-y-6 pb-20">
             {error ? (
               <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+                <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">
                   <CircleAlert className="text-red-500" size={40} strokeWidth={2} />
                 </div>
-                <p className="text-[15px] font-bold text-gray-800 mb-8 leading-relaxed max-w-xs">
+                <h3 className="text-gray-800 font-bold mb-2">Gagal Memuat Data</h3>
+                <p className="text-sm text-gray-500 mb-8 leading-relaxed max-w-xs">
                   {error}
                 </p>
                 <button 
                   onClick={() => fetchHadiths(selectedBook.slug, page)}
-                  className="px-10 py-3 bg-[#00a896] text-white rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all shadow-md hover:shadow-lg hover:bg-[#008f80]"
+                  className="px-8 py-3 bg-[#00a896] text-white rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all shadow-md hover:shadow-lg hover:bg-[#008f80] flex items-center"
                 >
-                  COBA LAGI
+                  <RefreshCw size={14} className="mr-2" /> COBA LAGI
                 </button>
               </div>
             ) : loadingDetail && page === 1 ? (
