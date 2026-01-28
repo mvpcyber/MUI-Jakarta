@@ -29,6 +29,7 @@ import NewsPage from './components/NewsPage';
 import SearchModal from './components/SearchModal';
 import NotificationModal from './components/NotificationModal';
 import InfoModal from './components/InfoModal';
+import NewsDetailModal, { NewsDetailData } from './components/NewsDetailModal';
 
 export interface PrayerSchedule {
   subuh: string;
@@ -39,14 +40,6 @@ export interface PrayerSchedule {
   isya: string;
   tanggal: string;
   lokasi: string;
-}
-
-interface HomeNewsItem {
-  id: number;
-  title: string;
-  date: string;
-  link: string;
-  category: string;
 }
 
 const SplashScreen: React.FC = () => (
@@ -80,15 +73,18 @@ const App: React.FC = () => {
   const [isFatwaOpen, setIsFatwaOpen] = useState(false);
   const [isNewsOpen, setIsNewsOpen] = useState(false);
   
+  // News Detail State
+  const [isNewsDetailOpen, setIsNewsDetailOpen] = useState(false);
+  const [selectedNews, setSelectedNews] = useState<NewsDetailData | null>(null);
+  
   const [currentTime, setCurrentTime] = useState(new Date());
   const [locationName, setLocationName] = useState("Mendeteksi Lokasi...");
   const [prayerSchedule, setPrayerSchedule] = useState<PrayerSchedule | null>(null);
 
   // News State
-  const [homeNews, setHomeNews] = useState<HomeNewsItem[]>([]);
+  const [homeNews, setHomeNews] = useState<NewsDetailData[]>([]);
   const [newsPage, setNewsPage] = useState(1);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [totalNewsPages, setTotalNewsPages] = useState(1);
 
   // Timer untuk jam digital
   useEffect(() => {
@@ -100,29 +96,36 @@ const App: React.FC = () => {
   const fetchHomeNews = useCallback(async (page: number) => {
     setNewsLoading(true);
     try {
-      // Mengambil header untuk total halaman jika diperlukan, tapi WP API standar mengembalikan di header
+      // Fetch with Embed to get images and author
       const response = await fetch(`https://muijakarta.or.id/wp-json/wp/v2/posts?_embed&per_page=5&page=${page}`);
       
-      // Hitung total pages dari header
-      const totalPagesHeader = response.headers.get('X-WP-TotalPages');
-      if (totalPagesHeader) {
-        setTotalNewsPages(parseInt(totalPagesHeader));
-      }
-
       const data = await response.json();
       
       if (Array.isArray(data)) {
-        const formatted: HomeNewsItem[] = data.map((item: any) => {
+        const formatted: NewsDetailData[] = data.map((item: any) => {
           let cat = "BERITA";
           if (item._embedded && item._embedded['wp:term'] && item._embedded['wp:term'][0] && item._embedded['wp:term'][0][0]) {
             cat = item._embedded['wp:term'][0][0].name;
+          }
+
+          let img = "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg";
+          if (item._embedded && item._embedded['wp:featuredmedia'] && item._embedded['wp:featuredmedia'][0]) {
+             img = item._embedded['wp:featuredmedia'][0].source_url;
+          }
+
+          let authorName = "Admin";
+          if (item._embedded && item._embedded['author'] && item._embedded['author'][0]) {
+              authorName = item._embedded['author'][0].name;
           }
 
           return {
             id: item.id,
             title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
             date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-            link: item.link,
+            url: item.link, // For sharing
+            content: item.content.rendered, // For detail view
+            imageUrl: img, // For detail view
+            author: authorName,
             category: cat.toUpperCase()
           };
         });
@@ -260,6 +263,11 @@ const App: React.FC = () => {
     if (menuId === 'berita') setIsNewsOpen(true);
   };
 
+  const handleNewsClick = (news: NewsDetailData) => {
+    setSelectedNews(news);
+    setIsNewsDetailOpen(true);
+  };
+
   if (showSplash) return <SplashScreen />;
 
   return (
@@ -379,12 +387,10 @@ const App: React.FC = () => {
             ) : (
               <>
                 {homeNews.map((item) => (
-                  <a 
+                  <div 
                     key={item.id} 
-                    href={item.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30"
+                    onClick={() => handleNewsClick(item)}
+                    className="block bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30 cursor-pointer"
                   >
                      <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] font-black text-[#00a896] uppercase bg-teal-50 px-2 py-0.5 rounded-md tracking-wider">{item.category}</span>
@@ -394,7 +400,7 @@ const App: React.FC = () => {
                         </div>
                      </div>
                      <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2" dangerouslySetInnerHTML={{ __html: item.title }} />
-                  </a>
+                  </div>
                 ))}
 
                 {/* Pagination Controls */}
@@ -469,6 +475,12 @@ const App: React.FC = () => {
       {/* New Pages */}
       <FatwaPage isOpen={isFatwaOpen} onClose={() => setIsFatwaOpen(false)} />
       <NewsPage isOpen={isNewsOpen} onClose={() => setIsNewsOpen(false)} />
+      
+      <NewsDetailModal 
+        isOpen={isNewsDetailOpen} 
+        onClose={() => setIsNewsDetailOpen(false)} 
+        news={selectedNews} 
+      />
       
       {/* Utility Modals */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />

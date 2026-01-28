@@ -6,20 +6,14 @@ import {
   Loader2, 
   Calendar, 
   ChevronRight, 
-  ExternalLink,
   ChevronLeft,
   Newspaper,
   RefreshCw
 } from 'lucide-react';
+import NewsDetailModal, { NewsDetailData } from './NewsDetailModal';
 
-interface NewsItem {
-  id: number;
-  title: string;
+interface NewsItem extends NewsDetailData {
   excerpt: string;
-  imageUrl: string;
-  date: string;
-  url: string;
-  category: string;
 }
 
 interface NewsPageProps {
@@ -32,6 +26,10 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
+
+  // Detail Modal State
+  const [selectedNews, setSelectedNews] = useState<NewsDetailData | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const fetchNews = async () => {
     setLoading(true);
@@ -52,14 +50,21 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
             cat = item._embedded['wp:term'][0][0].name;
           }
 
+          let authorName = "Admin";
+          if (item._embedded && item._embedded['author'] && item._embedded['author'][0]) {
+              authorName = item._embedded['author'][0].name;
+          }
+
           return {
             id: item.id,
             title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
             excerpt: item.excerpt.rendered.replace(/<[^>]+>/g, '').slice(0, 100) + "...",
+            content: item.content.rendered, // Ambil Full Content
             category: cat.toUpperCase(),
             imageUrl: img,
             date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-            url: item.link
+            url: item.link,
+            author: authorName
           };
         });
         setNews(formattedNews);
@@ -84,9 +89,15 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
 
   const totalPages = Math.ceil(news.length / itemsPerPage);
 
+  const handleNewsClick = (item: NewsItem) => {
+      setSelectedNews(item);
+      setIsDetailOpen(true);
+  };
+
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-[140] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
       <div 
         className="pt-12 pb-8 px-6 relative overflow-hidden shadow-lg bg-[#00a896]"
@@ -123,7 +134,11 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
         ) : (
           <div className="space-y-6 pb-20">
             {pagedNews.map((item) => (
-              <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 group active:scale-[0.98] transition-all">
+              <div 
+                key={item.id} 
+                onClick={() => handleNewsClick(item)}
+                className="block bg-white rounded-[24px] overflow-hidden shadow-sm border border-gray-100 group active:scale-[0.98] transition-all cursor-pointer"
+              >
                 <div className="relative h-40 overflow-hidden">
                   <img src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
                   <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-teal-700 text-[9px] font-black px-3 py-1.5 rounded-full uppercase shadow-lg tracking-widest border border-teal-100">
@@ -142,7 +157,7 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
                       Baca Selengkapnya <ChevronRight size={14} className="ml-1" />
                    </div>
                 </div>
-              </a>
+              </div>
             ))}
 
             {news.length === 0 && (
@@ -188,6 +203,13 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
         )}
       </div>
     </div>
+    
+    <NewsDetailModal 
+        isOpen={isDetailOpen}
+        onClose={() => setIsDetailOpen(false)}
+        news={selectedNews}
+    />
+    </>
   );
 };
 
