@@ -35,14 +35,14 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
-  // Slug disesuaikan dengan Gading Dev API
+  // Slug disesuaikan dengan API hadis-api-id.vercel.app
   const staticBooks: HadithBook[] = [
     { name: "Imam Bukhari", slug: "bukhari", total: 7008 },
     { name: "Imam Muslim", slug: "muslim", total: 5362 },
-    { name: "Imam Abu Daud", slug: "abu-dawud", total: 4419 }, // Updated slug
+    { name: "Imam Abu Daud", slug: "abu-dawud", total: 4419 },
     { name: "Imam Tirmidzi", slug: "tirmidzi", total: 3625 },
     { name: "Imam Nasai", slug: "nasai", total: 5364 },
-    { name: "Imam Ibnu Majah", slug: "ibn-majah", total: 4285 }, // Updated slug
+    { name: "Imam Ibnu Majah", slug: "ibnu-majah", total: 4285 }, // Updated slug from 'ibn-majah' to 'ibnu-majah'
     { name: "Imam Malik", slug: "malik", total: 1594 },
     { name: "Imam Ahmad", slug: "ahmad", total: 26363 },
     { name: "Imam Darimi", slug: "darimi", total: 3367 },
@@ -52,13 +52,8 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
     setLoadingDetail(true);
     setError(null);
     try {
-      // Menggunakan Gading Dev API
-      // Range calculation: Page 1 (1-20), Page 2 (21-40)
-      const limit = 20;
-      const start = (p - 1) * limit + 1;
-      const end = p * limit;
-      
-      const response = await fetch(`https://api.hadith.gading.dev/books/${slug}?range=${start}-${end}`);
+      // Menggunakan API baru yang lebih stabil
+      const response = await fetch(`https://hadis-api-id.vercel.app/hadith/${slug}?page=${p}&limit=20`);
       
       if (!response.ok) {
         throw new Error("Gagal mengambil data dari server.");
@@ -66,8 +61,9 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
       
       const result = await response.json();
       
-      if (result.data && Array.isArray(result.data.hadiths)) {
-        const items = result.data.hadiths.map((item: any) => ({
+      // Adaptasi response API baru
+      if (result.items && Array.isArray(result.items)) {
+        const items = result.items.map((item: any) => ({
           number: item.number,
           arab: item.arab,
           id: item.id
@@ -81,7 +77,7 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
 
     } catch (err: any) {
       console.error('Hadith Fetch Error:', err);
-      setError("Maaf, terjadi kendala saat mengambil data hadits. Silakan coba beberapa saat lagi.");
+      setError("Maaf, terjadi kendala saat mengambil data hadits. Server mungkin sedang sibuk.");
     } finally {
       setLoadingDetail(false);
     }
