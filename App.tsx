@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   MapPin, 
-  ChevronRight, 
   Home, 
   BookOpen, 
   FileText, 
@@ -10,13 +9,13 @@ import {
   Settings, 
   Bell, 
   Loader2, 
-  ExternalLink, 
   Search, 
-  RefreshCw, 
-  Clock, 
-  Compass, 
-  ArrowLeft, 
-  ChevronLeft 
+  ArrowRight,
+  User,
+  Clock,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -25,14 +24,11 @@ import PrayerPage from './components/PrayerPage';
 import HaditsPage from './components/HaditsPage';
 import KiblatPage from './components/KiblatPage';
 import HalalPage from './components/HalalPage';
-
-export interface NewsItem {
-  title: string;
-  category: string;
-  imageUrl: string;
-  date: string;
-  url: string;
-}
+import FatwaPage from './components/FatwaPage';
+import NewsPage from './components/NewsPage';
+import SearchModal from './components/SearchModal';
+import NotificationModal from './components/NotificationModal';
+import InfoModal from './components/InfoModal';
 
 export interface PrayerSchedule {
   subuh: string;
@@ -42,10 +38,19 @@ export interface PrayerSchedule {
   maghrib: string;
   isya: string;
   tanggal: string;
+  lokasi: string;
+}
+
+interface HomeNewsItem {
+  id: number;
+  title: string;
+  date: string;
+  link: string;
+  category: string;
 }
 
 const SplashScreen: React.FC = () => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#00827f] overflow-hidden islamic-bg">
+  <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#00827f] overflow-hidden islamic-bg">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
     <div className="relative flex flex-col items-center animate-in fade-in zoom-in duration-700">
       <div className="w-32 h-32 bg-white rounded-full p-4 shadow-2xl flex items-center justify-center mb-6">
@@ -59,88 +64,184 @@ const SplashScreen: React.FC = () => (
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Modals States
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  // Page States
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
   const [isQuranOpen, setIsQuranOpen] = useState(false);
   const [isHaditsOpen, setIsHaditsOpen] = useState(false);
   const [isKiblatOpen, setIsKiblatOpen] = useState(false);
   const [isHalalOpen, setIsHalalOpen] = useState(false);
+  const [isFatwaOpen, setIsFatwaOpen] = useState(false);
+  const [isNewsOpen, setIsNewsOpen] = useState(false);
+  
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [locationName, setLocationName] = useState("Palmerah, Jakarta Barat");
+  const [locationName, setLocationName] = useState("Mendeteksi Lokasi...");
   const [prayerSchedule, setPrayerSchedule] = useState<PrayerSchedule | null>(null);
-  const [allNews, setAllNews] = useState<NewsItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
 
+  // News State
+  const [homeNews, setHomeNews] = useState<HomeNewsItem[]>([]);
+  const [newsPage, setNewsPage] = useState(1);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [totalNewsPages, setTotalNewsPages] = useState(1);
+
+  // Timer untuk jam digital
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const fetchPrayerSchedule = useCallback(async (cityName: string) => {
+  // Fetch News from MUI Jakarta
+  const fetchHomeNews = useCallback(async (page: number) => {
+    setNewsLoading(true);
     try {
-      const cleanCityName = cityName.split(',')[0].trim() || "Jakarta Barat";
-      const cityRes = await fetch(`https://api.myquran.com/v2/sholat/kota/cari/${cleanCityName}`);
-      const cityData = await cityRes.json();
+      // Mengambil header untuk total halaman jika diperlukan, tapi WP API standar mengembalikan di header
+      const response = await fetch(`https://muijakarta.or.id/wp-json/wp/v2/posts?_embed&per_page=5&page=${page}`);
       
-      if (cityData.status && cityData.data.length > 0) {
-        const cityId = cityData.data[0].id;
-        const now = new Date();
-        const scheduleRes = await fetch(`https://api.myquran.com/v2/sholat/jadwal/${cityId}/${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`);
-        const scheduleData = await scheduleRes.json();
-        if (scheduleData.status) setPrayerSchedule(scheduleData.data.jadwal);
+      // Hitung total pages dari header
+      const totalPagesHeader = response.headers.get('X-WP-TotalPages');
+      if (totalPagesHeader) {
+        setTotalNewsPages(parseInt(totalPagesHeader));
+      }
+
+      const data = await response.json();
+      
+      if (Array.isArray(data)) {
+        const formatted: HomeNewsItem[] = data.map((item: any) => {
+          let cat = "BERITA";
+          if (item._embedded && item._embedded['wp:term'] && item._embedded['wp:term'][0] && item._embedded['wp:term'][0][0]) {
+            cat = item._embedded['wp:term'][0][0].name;
+          }
+
+          return {
+            id: item.id,
+            title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
+            date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+            link: item.link,
+            category: cat.toUpperCase()
+          };
+        });
+        setHomeNews(formatted);
       }
     } catch (err) {
-      console.error("Prayer API error:", err);
+      console.error("News Fetch Error:", err);
+    } finally {
+      setNewsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
-          const data = await res.json();
-          const city = data.address.city || data.address.town || data.address.county || "Jakarta Barat";
-          setLocationName(city);
-          fetchPrayerSchedule(city);
-        } catch (err) {
-          console.warn("Location detection fallback to default.");
-          fetchPrayerSchedule("Jakarta Barat");
-        }
-      }, () => fetchPrayerSchedule("Jakarta Barat"));
-    } else {
-      fetchPrayerSchedule("Jakarta Barat");
+    if (!showSplash) {
+      fetchHomeNews(newsPage);
     }
-  }, [fetchPrayerSchedule]);
+  }, [showSplash, newsPage, fetchHomeNews]);
 
+  // Fungsi mengambil jadwal sholat berdasarkan koordinat (Method 20 = Kemenag RI)
+  const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, cityDisplayName: string) => {
+    try {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const response = await fetch(`https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lng}&method=20`);
+      const data = await response.json();
+
+      if (data.code === 200 && data.data) {
+        const timings = data.data.timings;
+        const dateReadable = data.data.date.readable;
+
+        setPrayerSchedule({
+          subuh: timings.Fajr,
+          terbit: timings.Sunrise,
+          dzuhur: timings.Dhuhr,
+          ashar: timings.Asr,
+          maghrib: timings.Maghrib,
+          isya: timings.Isha,
+          tanggal: dateReadable,
+          lokasi: cityDisplayName
+        });
+      }
+    } catch (err) {
+      console.error("Prayer API Error:", err);
+    }
+  }, []);
+
+  // Deteksi Lokasi dan Jadwal
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
+            const data = await res.json();
+            const city = data.address.city || data.address.town || data.address.county || data.address.state || "Lokasi Anda";
+            setLocationName(city);
+            fetchPrayerTimesByCoords(latitude, longitude, city);
+          } catch (err) {
+            console.warn("Gagal mendapatkan nama lokasi, menggunakan default.");
+            setLocationName("Jakarta Pusat");
+            fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
+          }
+        }, 
+        (error) => {
+          console.warn("Izin lokasi ditolak/error.", error);
+          setLocationName("Jakarta Pusat");
+          fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
+        }
+      );
+    } else {
+      setLocationName("Jakarta Pusat");
+      fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
+    }
+  }, [fetchPrayerTimesByCoords]);
+
+  // Logika Waktu Sholat Berikutnya
   const nextPrayer = useMemo(() => {
-    if (!prayerSchedule) return { name: 'Maghrib', time: '18:00' };
+    if (!prayerSchedule) return { name: 'Memuat...', time: '--:--' };
     const now = new Date();
-    const currentStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-    const schedule = [
-      { name: 'Subuh', time: prayerSchedule.subuh },
-      { name: 'Terbit', time: prayerSchedule.terbit },
-      { name: 'Dzuhur', time: prayerSchedule.dzuhur },
-      { name: 'Ashar', time: prayerSchedule.ashar },
-      { name: 'Maghrib', time: prayerSchedule.maghrib },
-      { name: 'Isya', time: prayerSchedule.isya },
-    ];
-    const next = schedule.find(p => p.time > currentStr);
-    return next || schedule[0]; 
-  }, [prayerSchedule]);
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+    const timeToMinutes = (timeStr: string) => {
+      const [h, m] = timeStr.split(':').map(Number);
+      return h * 60 + m;
+    };
+
+    const schedule = [
+      { name: 'Subuh', time: prayerSchedule.subuh, minutes: timeToMinutes(prayerSchedule.subuh) },
+      { name: 'Terbit', time: prayerSchedule.terbit, minutes: timeToMinutes(prayerSchedule.terbit) },
+      { name: 'Dzuhur', time: prayerSchedule.dzuhur, minutes: timeToMinutes(prayerSchedule.dzuhur) },
+      { name: 'Ashar', time: prayerSchedule.ashar, minutes: timeToMinutes(prayerSchedule.ashar) },
+      { name: 'Maghrib', time: prayerSchedule.maghrib, minutes: timeToMinutes(prayerSchedule.maghrib) },
+      { name: 'Isya', time: prayerSchedule.isya, minutes: timeToMinutes(prayerSchedule.isya) },
+    ];
+
+    const next = schedule.find(p => p.minutes > currentMinutes);
+    return next || { name: 'Subuh', time: prayerSchedule.subuh }; 
+  }, [prayerSchedule, currentTime]);
+
+  // Logika Countdown
   const countdown = useMemo(() => {
-    if (!prayerSchedule || nextPrayer.time === '18:00') return "00:00:00";
+    if (!prayerSchedule || nextPrayer.time === '--:--') return "00:00:00";
     const [h, m] = nextPrayer.time.split(':').map(Number);
     const target = new Date(currentTime);
     target.setHours(h, m, 0, 0);
-    if (target < currentTime) target.setDate(target.getDate() + 1);
+
+    if (target < currentTime) {
+      target.setDate(target.getDate() + 1);
+    }
+
     const diff = target.getTime() - currentTime.getTime();
+    if (diff < 0) return "00:00:00";
+
     const pad = (n: number) => n.toString().padStart(2, '0');
-    return `${pad(Math.floor(diff / 3600000))}:${pad(Math.floor((diff % 3600000) / 60000))}:${pad(Math.floor((diff % 60000) / 1000))}`;
+    const hours = Math.floor(diff / 3600000);
+    const minutes = Math.floor((diff % 3600000) / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+
+    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   }, [nextPrayer, prayerSchedule, currentTime]);
 
   useEffect(() => {
@@ -148,81 +249,21 @@ const App: React.FC = () => {
     return () => clearTimeout(splashTimer);
   }, []);
 
-  const fetchNewsFromWP = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Mengambil 50 berita terbaru dari API WordPress MUI Jakarta
-      const wpApiUrl = "https://muijakarta.or.id/wp-json/wp/v2/posts?_embed&per_page=50";
-      
-      const response = await fetch(wpApiUrl);
-      const data = await response.json();
-      
-      if (Array.isArray(data)) {
-        const formattedNews: NewsItem[] = data.map((item: any) => {
-          // Extract Image
-          let img = "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg";
-          if (item._embedded && item._embedded['wp:featuredmedia'] && item._embedded['wp:featuredmedia'][0]) {
-             img = item._embedded['wp:featuredmedia'][0].source_url;
-          }
-
-          // Extract Category if available
-          let cat = "BERITA";
-          if (item._embedded && item._embedded['wp:term'] && item._embedded['wp:term'][0] && item._embedded['wp:term'][0][0]) {
-            cat = item._embedded['wp:term'][0][0].name;
-          }
-
-          return {
-            title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
-            category: cat.toUpperCase(),
-            imageUrl: img,
-            date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-            url: item.link
-          };
-        });
-        setAllNews(formattedNews);
-        setCurrentPage(1);
-      } else {
-        throw new Error("Gagal mengambil data dari WP API");
-      }
-    } catch (err) {
-      console.error("News Fetch Error:", err);
-      // Fallback data jika API down atau terblokir CORS
-      setAllNews([
-        {
-          title: "MUI Jakarta Tegaskan Pentingnya Menjaga Ukhuwah Islamiyah",
-          category: "BERITA",
-          imageUrl: "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg",
-          date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-          url: "https://muijakarta.or.id/"
-        },
-        {
-          title: "Fatwa MUI Tentang Penggunaan Media Sosial",
-          category: "FATWA",
-          imageUrl: "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg",
-          date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-          url: "https://muijakarta.or.id/"
-        }
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!showSplash) fetchNewsFromWP();
-  }, [fetchNewsFromWP, showSplash]);
-
-  const pagedNews = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return allNews.slice(start, start + itemsPerPage);
-  }, [allNews, currentPage]);
-
-  const totalPages = Math.ceil(allNews.length / itemsPerPage);
+  const handleQuickNavigation = (menuId: string) => {
+    if (menuId === 'halal') setIsHalalOpen(true);
+    if (menuId === 'lainnya') setIsMenuOpen(true);
+    if (menuId === 'jadwal') setIsPrayerPageOpen(true);
+    if (menuId === 'quran') setIsQuranOpen(true);
+    if (menuId === 'hadits') setIsHaditsOpen(true);
+    if (menuId === 'kiblat') setIsKiblatOpen(true);
+    if (menuId === 'fatwa') setIsFatwaOpen(true);
+    if (menuId === 'berita') setIsNewsOpen(true);
+  };
 
   if (showSplash) return <SplashScreen />;
 
   return (
-    <div className="max-w-md mx-auto bg-[#f8fafc] min-h-screen pb-28 relative shadow-2xl overflow-x-hidden">
+    <div className="max-w-md mx-auto bg-[#f8fafc] min-h-screen relative shadow-2xl overflow-x-hidden">
       {/* Header Background */}
       <div className="absolute top-0 left-0 right-0 h-[420px] islamic-bg z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
@@ -230,10 +271,19 @@ const App: React.FC = () => {
 
       <div className="relative z-10 pt-4 flex flex-col items-center">
         <div className="w-full px-6 flex justify-between items-center mb-6 relative z-20">
-          <button className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"><Search size={22} /></button>
-          <button className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform">
+          <button 
+            onClick={() => setIsSearchOpen(true)}
+            className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"
+          >
+            <Search size={22} />
+          </button>
+          
+          <button 
+            onClick={() => setIsNotifOpen(true)}
+            className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform"
+          >
             <Bell size={22} />
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white"></span>
+            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>
           </button>
         </div>
 
@@ -251,7 +301,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="text-center mb-2">
-            <h2 className="text-4xl font-black text-white tracking-tighter drop-shadow-lg">
+            <h2 className="text-4xl font-black text-white tracking-tighter drop-shadow-lg uppercase">
               {nextPrayer.name}' {nextPrayer.time} <span className="text-sm font-bold opacity-70">WIB</span>
             </h2>
           </div>
@@ -260,7 +310,7 @@ const App: React.FC = () => {
             <span className="mr-2 text-orange-400 font-black">-</span> {countdown}
           </div>
 
-          {/* Date display (Hijri and Gregorian) */}
+          {/* Date display */}
           <div className="text-[10px] font-black text-white tracking-wider bg-white/20 backdrop-blur-md px-6 py-2.5 rounded-full uppercase border border-white/20 shadow-xl flex items-center justify-center whitespace-nowrap overflow-hidden">
             <span className="shrink-0">
               {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -276,111 +326,169 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Content Container */}
-      <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)]">
+      {/* Content Container (Padding Bottom untuk Nav) */}
+      <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-32">
         {/* Menu Grid */}
-        <div className="grid grid-cols-4 gap-x-3 gap-y-8 pb-10">
+        <div className="grid grid-cols-4 gap-x-3 gap-y-8 pb-8">
           {QUICK_MENUS.map((menu) => (
             <button 
               key={menu.id} 
-              onClick={() => {
-                if (menu.id === 'halal') setIsHalalOpen(true);
-                if (menu.id === 'lainnya') setIsMenuOpen(true);
-                if (menu.id === 'jadwal') setIsPrayerPageOpen(true);
-                if (menu.id === 'quran') setIsQuranOpen(true);
-                if (menu.id === 'hadits') setIsHaditsOpen(true);
-                if (menu.id === 'kiblat') setIsKiblatOpen(true);
-              }}
+              onClick={() => handleQuickNavigation(menu.id)}
               className="flex flex-col items-center group active:scale-95 transition-all duration-200"
             >
               <div className={`w-[62px] h-[62px] rounded-2xl flex items-center justify-center ${menu.color} shadow-sm border border-gray-100/30 mb-2 group-hover:shadow-md transition-shadow`}>
-                {React.cloneElement(menu.icon as React.ReactElement, { size: 28 })}
+                {React.cloneElement(menu.icon as React.ReactElement<any>, { size: 28 })}
               </div>
               <span className="text-[10px] font-bold text-gray-500 text-center leading-tight tracking-tight uppercase px-1">{menu.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Headline Section */}
+        {/* Fatwa Card (Sesuai Desain Baru) */}
+        <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-8 flex items-center relative overflow-hidden">
+           <div className="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center shrink-0 mr-5 border border-orange-100">
+              <FileText className="text-orange-600" size={32} />
+           </div>
+           <div>
+              <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">Fatwa Terbaru</h3>
+              <p className="text-xs text-gray-500 mb-3">Cek fatwa terbaru dari MUI Pusat</p>
+              <button 
+                onClick={() => setIsFatwaOpen(true)} 
+                className="bg-orange-500 text-white px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg shadow-orange-200 active:scale-95 transition-transform"
+              >
+                Buka Fatwa
+              </button>
+           </div>
+        </div>
+
+        {/* Info Terkini / News Section */}
         <div className="pb-10">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-black text-gray-800 border-l-4 border-orange-500 pl-3">Berita Terbaru</h2>
-            <button onClick={fetchNewsFromWP} disabled={loading} className="text-teal-600 text-[10px] font-black uppercase tracking-widest bg-teal-50 px-4 py-2 rounded-full border border-teal-100 active:bg-teal-100 transition-all flex items-center">
-              <RefreshCw size={14} className={`inline mr-2 ${loading ? 'animate-spin' : ''}`} /> {loading ? 'Memuat' : 'Update'}
-            </button>
+             <h2 className="text-xl font-black text-gray-800 border-l-4 border-[#00a896] pl-3">Info Terkini</h2>
+             <button onClick={() => setIsNewsOpen(true)} className="text-[#00a896] text-xs font-bold flex items-center active:opacity-70">
+               Lihat Semua <ArrowRight size={14} className="ml-1" />
+             </button>
           </div>
-
-          {loading ? (
-             <div className="py-20 flex flex-col items-center justify-center">
-               <Loader2 className="animate-spin text-teal-600" size={40} />
-               <p className="text-[10px] text-gray-400 mt-6 font-black uppercase tracking-[0.2em]">Mengambil Berita...</p>
-             </div>
-          ) : (
-            <>
-              <div className="space-y-6">
-                {pagedNews.map((item, idx) => (
-                  <a key={idx} href={item.url} target="_blank" rel="noopener noreferrer" className="block bg-white rounded-[32px] overflow-hidden shadow-sm border border-gray-100 group active:scale-[0.98] transition-all">
-                    <div className="relative h-48 overflow-hidden">
-                      <img src={item.imageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                      <div className="absolute top-4 left-4 bg-orange-600 text-white text-[9px] font-black px-3 py-1.5 rounded-full uppercase shadow-lg tracking-widest">{item.category}</div>
-                      <div className="absolute bottom-4 left-4 text-white text-[10px] font-bold flex items-center opacity-90 uppercase tracking-tighter">
-                        <Calendar size={12} className="mr-2 text-orange-400" /> {item.date}
-                      </div>
-                    </div>
-                    <div className="p-6">
-                      <h3 className="font-bold text-gray-800 leading-snug line-clamp-2 mb-3 group-hover:text-teal-700 transition-colors text-[15px]" dangerouslySetInnerHTML={{ __html: item.title }} />
-                      <div className="flex items-center justify-between">
-                        <div className="text-teal-600 text-[10px] font-black uppercase flex items-center tracking-widest group-hover:underline decoration-teal-300 underline-offset-4">Selengkapnya <ChevronRight size={14} className="ml-1 transition-transform" /></div>
-                        <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center border border-gray-100"><ExternalLink size={12} className="text-gray-400" /></div>
-                      </div>
-                    </div>
+          
+          <div className="space-y-4">
+            {newsLoading && homeNews.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 bg-white rounded-[32px] border border-gray-50">
+                <Loader2 className="animate-spin text-[#00a896] mb-2" size={24} />
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Memuat Berita...</p>
+              </div>
+            ) : (
+              <>
+                {homeNews.map((item) => (
+                  <a 
+                    key={item.id} 
+                    href={item.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30"
+                  >
+                     <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-black text-[#00a896] uppercase bg-teal-50 px-2 py-0.5 rounded-md tracking-wider">{item.category}</span>
+                        <div className="flex items-center text-gray-400">
+                          <Calendar size={10} className="mr-1" />
+                          <span className="text-[10px] font-bold">{item.date}</span>
+                        </div>
+                     </div>
+                     <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2" dangerouslySetInnerHTML={{ __html: item.title }} />
                   </a>
                 ))}
-              </div>
 
-              {/* Pagination */}
-              {allNews.length > itemsPerPage && (
-                <div className="mt-10 flex items-center justify-center space-x-2">
-                  <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm disabled:opacity-30 active:scale-90 transition-transform text-teal-600"><ChevronLeft size={20} /></button>
-                  <div className="flex space-x-1 overflow-x-auto max-w-[200px] no-scrollbar">
-                    {[...Array(totalPages)].map((_, i) => (
-                      <button key={i} onClick={() => setCurrentPage(i + 1)} className={`min-w-[40px] h-10 rounded-xl font-bold text-xs transition-all ${currentPage === i + 1 ? 'bg-teal-600 text-white shadow-lg' : 'bg-white text-gray-400 border border-gray-100'}`}>{i + 1}</button>
-                    ))}
+                {/* Pagination Controls */}
+                <div className="flex items-center justify-center space-x-2 mt-6">
+                  <button 
+                    onClick={() => setNewsPage(prev => Math.max(1, prev - 1))}
+                    disabled={newsPage === 1 || newsLoading}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 disabled:opacity-30 active:scale-90 transition-transform"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  
+                  <div className="flex space-x-1">
+                     <span className="h-8 flex items-center justify-center px-3 font-bold text-xs bg-[#00a896] text-white rounded-xl shadow-md">
+                        {newsPage}
+                     </span>
                   </div>
-                  <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="p-3 rounded-2xl bg-white border border-gray-100 shadow-sm disabled:opacity-30 active:scale-90 transition-transform text-teal-600"><ChevronRight size={20} /></button>
+
+                  <button 
+                    onClick={() => setNewsPage(prev => prev + 1)}
+                    disabled={newsLoading || homeNews.length < 5}
+                    className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 disabled:opacity-30 active:scale-90 transition-transform"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
-              )}
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-gray-100/50 flex justify-around items-center py-5 px-6 z-40 rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.08)]">
-        <NavButton icon={<Home size={22} />} label="Beranda" active />
-        <NavButton icon={<BookOpen size={22} />} label="Al-Quran" onClick={() => setIsQuranOpen(true)} />
-        <NavButton icon={<FileText size={22} />} label="Fatwa" />
-        <NavButton icon={<Calendar size={22} />} label="Event" />
-        <NavButton icon={<Settings size={22} />} label="Profil" />
+      {/* Persistent Floating Bottom Nav */}
+      <nav className="fixed bottom-6 left-4 right-4 max-w-[calc(100%-2rem)] mx-auto bg-white/90 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] flex justify-between items-end px-2 py-2 z-[200]">
+        
+        {/* Left Side */}
+        <div className="flex-1 flex justify-around pb-1">
+          <NavButton icon={<BookOpen size={20} />} label="Al-Quran" onClick={() => setIsQuranOpen(true)} />
+          <NavButton icon={<FileText size={20} />} label="Fatwa" onClick={() => setIsFatwaOpen(true)} />
+        </div>
+
+        {/* Center Button (Beranda) */}
+        <div className="relative -top-8 px-2 flex flex-col items-center">
+           <button 
+             onClick={() => {
+                // Beranda logic: Close all modals to reveal main content
+                setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
+                setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
+             }}
+             className="w-16 h-16 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
+           >
+              <Home size={28} />
+           </button>
+           <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span>
+        </div>
+
+        {/* Right Side */}
+        <div className="flex-1 flex justify-around pb-1">
+          <NavButton icon={<Clock size={20} />} label="Jadwal" onClick={() => setIsPrayerPageOpen(true)} />
+          <NavButton icon={<User size={20} />} label="Profil" onClick={() => setIsProfileOpen(true)} />
+        </div>
       </nav>
 
+      {/* Modals / Pages */}
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
       <QuranPage isOpen={isQuranOpen} onClose={() => setIsQuranOpen(false)} />
       <HaditsPage isOpen={isHaditsOpen} onClose={() => setIsHaditsOpen(false)} />
       <KiblatPage isOpen={isKiblatOpen} onClose={() => setIsKiblatOpen(false)} />
       <HalalPage isOpen={isHalalOpen} onClose={() => setIsHalalOpen(false)} />
+      
+      {/* New Pages */}
+      <FatwaPage isOpen={isFatwaOpen} onClose={() => setIsFatwaOpen(false)} />
+      <NewsPage isOpen={isNewsOpen} onClose={() => setIsNewsOpen(false)} />
+      
+      {/* Utility Modals */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />
+      <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      <InfoModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        title="Profil Pengguna"
+        message="Fitur Profil dan akun pengguna saat ini masih dalam tahap pengembangan. Nantikan pembaruan selanjutnya!"
+      />
     </div>
   );
 };
 
 const NavButton: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
-  <button onClick={onClick} className={`flex flex-col items-center space-y-1.5 group ${active ? 'text-teal-600' : 'text-gray-300'} active:scale-95 transition-all`}>
-    <div className={`transition-all duration-300 p-2.5 rounded-2xl ${active ? 'bg-teal-600 text-white shadow-xl shadow-teal-200 scale-110' : 'hover:bg-gray-50'}`}>
+  <button onClick={onClick} className={`flex flex-col items-center space-y-1 group w-14 ${active ? 'text-teal-600' : 'text-gray-400'} active:scale-95 transition-all`}>
+    <div className={`p-2 rounded-xl transition-colors ${active ? 'bg-teal-50' : 'group-hover:bg-gray-50'}`}>
       {icon}
     </div>
-    <span className={`text-[9px] font-black uppercase tracking-widest transition-opacity ${active ? 'opacity-100' : 'opacity-60'}`}>{label}</span>
+    <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">{label}</span>
   </button>
 );
 

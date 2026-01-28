@@ -8,7 +8,8 @@ import {
   Share2, 
   Copy, 
   CircleAlert,
-  RefreshCw
+  RefreshCw,
+  WifiOff
 } from 'lucide-react';
 
 interface HadithBook {
@@ -35,6 +36,7 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   const staticBooks: HadithBook[] = [
     { name: "Imam Bukhari", slug: "bukhari", total: 7008 },
@@ -48,9 +50,20 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
     { name: "Imam Darimi", slug: "darimi", total: 3367 },
   ];
 
+  // Data dummy untuk mode offline
+  const getMockHadiths = (p: number, limit: number): HadithItem[] => {
+     return Array.from({ length: limit }).map((_, i) => ({
+        number: (p - 1) * limit + i + 1,
+        arab: "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى",
+        id: "Sesungguhnya setiap amalan tergantung pada niatnya. (Data ditampilkan dari mode offline karena server sedang sibuk/tidak dapat dijangkau)."
+     }));
+  };
+
   const fetchHadiths = async (slug: string, p: number = 1) => {
     setLoadingDetail(true);
     setError(null);
+    setIsOfflineMode(false);
+    
     let success = false;
     let newItems: HadithItem[] = [];
 
@@ -80,7 +93,6 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
       // ---------------------------------------------------------
       if (!success) {
         try {
-          // Menghitung range untuk API Gading (karena pakai range, bukan page)
           const limit = 20;
           const start = (p - 1) * limit + 1;
           const end = p * limit;
@@ -103,7 +115,17 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
       }
 
       // ---------------------------------------------------------
-      // HASIL AKHIR
+      // PERCOBAAN 3: Fallback Offline (Mock Data)
+      // ---------------------------------------------------------
+      if (!success) {
+         console.warn("Semua server gagal. Menggunakan data offline.");
+         newItems = getMockHadiths(p, 20);
+         success = true;
+         setIsOfflineMode(true);
+      }
+
+      // ---------------------------------------------------------
+      // UPDATE STATE
       // ---------------------------------------------------------
       if (success) {
         if (p === 1) setHadiths(newItems);
@@ -132,6 +154,7 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
     setHadiths([]);
     setPage(1);
     setError(null);
+    setIsOfflineMode(false);
   };
 
   const loadMore = () => {
@@ -207,6 +230,17 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
       <div className="flex-1 overflow-y-auto px-5 py-6 bg-white">
         {selectedBook ? (
           <div className="space-y-6 pb-20">
+            {/* Offline Mode Indicator */}
+            {isOfflineMode && (
+               <div className="flex items-center justify-between bg-orange-50 px-4 py-3 rounded-xl border border-orange-100">
+                  <div className="flex items-center space-x-2">
+                     <WifiOff size={16} className="text-orange-500" />
+                     <p className="text-[10px] font-bold text-orange-700">Mode Offline (Server Sibuk)</p>
+                  </div>
+                  <button onClick={() => fetchHadiths(selectedBook.slug, page)} className="text-[10px] font-black text-orange-600 underline">Coba Lagi</button>
+               </div>
+            )}
+
             {error ? (
               <div className="flex flex-col items-center justify-center py-24 text-center px-4">
                 <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-red-100">

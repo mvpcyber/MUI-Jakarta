@@ -24,7 +24,7 @@ const FullMenuModal: React.FC<FullMenuModalProps> = ({ isOpen, onClose }) => {
         {FULL_MENU_ITEMS.map((item, index) => (
           <div key={index} className="flex flex-col items-center text-center space-y-2">
             <div className={`w-14 h-14 rounded-full flex items-center justify-center ${item.color} shadow-sm border border-gray-100`}>
-              {React.cloneElement(item.icon as React.ReactElement, { size: 28 })}
+              {React.cloneElement(item.icon as React.ReactElement<any>, { size: 28 })}
             </div>
             <span className="text-[11px] font-medium leading-tight text-gray-700">{item.label}</span>
           </div>

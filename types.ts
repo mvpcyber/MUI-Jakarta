@@ -1,8 +1,10 @@
 
+import React from 'react';
+
 export interface MenuItem {
   id: string;
   label: string;
-  icon: string; // URL or Lucide name
+  icon: React.ReactNode;
   color: string;
 }
 
