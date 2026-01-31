@@ -125,25 +125,36 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
 
   return (
     <div className="fixed inset-0 z-[200] bg-white flex flex-col animate-in slide-in-from-right duration-300">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white sticky top-0 z-10">
-        <button 
-          onClick={onClose}
-          className="p-2 -ml-2 text-gray-600 active:bg-gray-100 rounded-full transition-colors"
-        >
-          <ArrowLeft size={24} />
-        </button>
-        <div className="flex-1 text-center">
-            <span className="text-xs font-black text-[#00a896] uppercase tracking-widest bg-teal-50 px-3 py-1 rounded-full">
+      {/* Header - New Style */}
+      <div 
+        className="pt-12 pb-6 px-6 relative overflow-hidden shadow-lg bg-[#00a896] shrink-0"
+        style={{ 
+          backgroundImage: 'url(https://img.freepik.com/premium-vector/islamic-background-green-pattern_650032-387.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center'
+        }}
+      >
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"></div>
+        <div className="relative z-10 flex items-center justify-between">
+          <button 
+            onClick={onClose}
+            className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform"
+          >
+            <ArrowLeft size={24} />
+          </button>
+          <div className="text-center">
+            <h2 className="text-lg font-bold text-white tracking-tight">Detail Berita</h2>
+            <span className="text-[10px] font-black text-[#5eead4] uppercase tracking-widest">
                 {news.category}
             </span>
+          </div>
+          <button 
+            onClick={handleShare}
+            className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform"
+          >
+            <Share2 size={20} />
+          </button>
         </div>
-        <button 
-          onClick={handleShare}
-          className="p-2 -mr-2 text-gray-600 active:bg-gray-100 rounded-full transition-colors"
-        >
-          <Share2 size={20} />
-        </button>
       </div>
 
       {/* Content */}
@@ -164,7 +175,7 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
             </div>
         )}
 
-        <div className="px-6 py-6 -mt-6 relative bg-white rounded-t-[32px]">
+        <div className={`px-6 py-6 relative bg-white ${news.imageUrl ? '-mt-6 rounded-t-[32px]' : ''}`}>
             {/* Meta Data */}
             <div className="flex items-center space-x-4 text-gray-400 text-xs font-bold mb-4">
                 <div className="flex items-center">

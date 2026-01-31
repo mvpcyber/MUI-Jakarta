@@ -37,6 +37,7 @@ import NotificationModal, { NotificationItem } from './components/NotificationMo
 import InfoModal from './components/InfoModal';
 import NewsDetailModal, { NewsDetailData } from './components/NewsDetailModal';
 import InstallPwaModal from './components/InstallPwaModal';
+import PermissionModal from './components/PermissionModal';
 
 export interface PrayerSchedule {
   subuh: string;
@@ -92,6 +93,7 @@ const App: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   
   // Page States
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
@@ -130,24 +132,57 @@ const App: React.FC = () => {
   // Logic Notifikasi
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Check Notification Permission on Mount
+  // Function to check if we should show the permission modal
+  const checkInitialPermissions = async () => {
+    let shouldShow = false;
+
+    // 1. Check Notification
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      shouldShow = true;
+    }
+
+    // 2. Check Geolocation
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const geoResult = await navigator.permissions.query({ name: 'geolocation' });
+        if (geoResult.state !== 'granted') {
+          shouldShow = true;
+        }
+      } catch (e) {
+        // If query fails, assume prompt needed
+        shouldShow = true;
+      }
+    }
+
+    // 3. Camera is usually 'prompt' by default until requested. 
+    // We show modal if others are needed or just to be safe if strictly enforced.
+    // For now, if notification OR geo is not granted, we show the modal which includes Camera.
+    
+    if (shouldShow) {
+      setIsPermissionModalOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!showSplash) {
+      // Delay slightly to allow fade out
+      const timer = setTimeout(() => {
+         checkInitialPermissions();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [showSplash]);
+
+  // Sync state with modal changes
   useEffect(() => {
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
     }
-  }, []);
+  }, [isPermissionModalOpen]); // Re-check when modal closes/changes
 
   const handleRequestPermission = () => {
-    if (!('Notification' in window)) return;
-    Notification.requestPermission().then((permission) => {
-      setNotificationPermission(permission);
-      if (permission === 'granted') {
-         new Notification("Notifikasi Aktif", { 
-           body: "Jazakumullah Khairan, Anda akan menerima pengingat waktu sholat.",
-           icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png"
-         });
-      }
-    });
+    // Legacy function for the card button, reused or redirects to modal
+    setIsPermissionModalOpen(true);
   };
 
   const handleRemoveNotification = (id: number) => {
@@ -532,7 +567,7 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Permission Request Card */}
+        {/* Permission Request Card (Still kept as inline reminder) */}
         {notificationPermission === 'default' && (
            <div className="bg-[#fff7ed] rounded-[32px] p-5 shadow-sm border border-orange-100 mb-6 flex items-start space-x-4 relative overflow-hidden">
                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center shrink-0 text-orange-600">
@@ -705,6 +740,13 @@ const App: React.FC = () => {
 
       {/* Install PWA Modal - Auto detected */}
       <InstallPwaModal />
+
+      {/* Permission Modal - Triggered after splash if permissions needed */}
+      <PermissionModal 
+        isOpen={isPermissionModalOpen}
+        onClose={() => setIsPermissionModalOpen(false)}
+        onPermissionsGranted={() => setIsPermissionModalOpen(false)}
+      />
 
       {/* Modals / Pages */}
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
