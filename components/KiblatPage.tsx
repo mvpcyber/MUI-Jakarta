@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, MapPin, Loader2, Navigation, Compass, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -86,7 +87,8 @@ const KiblatPage: React.FC<KiblatPageProps> = ({ isOpen, onClose }) => {
       setPermissionGranted(true);
       setNeedsPermission(false);
       // Coba event absolute dulu untuk Android Chrome terbaru
-      if ('ondeviceorientationabsolute' in window) {
+      // Menggunakan (window as any) untuk menghindari TypeScript narrowing ke 'never'
+      if ('ondeviceorientationabsolute' in (window as any)) {
         window.addEventListener('deviceorientationabsolute' as any, (e: any) => {
              // Absolute true north for Android
              if(e.absolute) {
