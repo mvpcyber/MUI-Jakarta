@@ -242,31 +242,6 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
           </div>
         )}
 
-        {/* Qori Selector Dropdown (Absolute) */}
-        {isQoriSelectorOpen && (
-          <div className="absolute top-24 right-6 w-64 bg-white rounded-2xl shadow-2xl z-50 animate-in zoom-in-95 duration-200 overflow-hidden border border-gray-100">
-             <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-                <h4 className="text-xs font-bold text-gray-700 uppercase">Pilih Penantun (Qori)</h4>
-             </div>
-             <div className="max-h-60 overflow-y-auto">
-                {QORI_OPTIONS.map((qori) => (
-                   <button 
-                     key={qori.id}
-                     onClick={() => {
-                        setSelectedQori(qori.id);
-                        setIsQoriSelectorOpen(false);
-                        stopAudio(); // Stop audio when changing qori
-                     }}
-                     className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between border-b border-gray-50 hover:bg-teal-50 transition-colors ${selectedQori === qori.id ? 'bg-teal-50 text-[#00a896] font-bold' : 'text-gray-600'}`}
-                   >
-                      <span>{qori.name}</span>
-                      {selectedQori === qori.id && <Check size={16} />}
-                   </button>
-                ))}
-             </div>
-          </div>
-        )}
-
         {/* Search Bar (Only shown in list view) */}
         {!selectedSurah && (
           <div className="relative z-10 px-2 mt-4">
@@ -283,6 +258,31 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
           </div>
         )}
       </div>
+
+      {/* Qori Selector Dropdown - Moved Outside Header to prevent clipping */}
+      {isQoriSelectorOpen && (
+        <div className="absolute top-24 right-6 w-64 bg-white rounded-2xl shadow-2xl z-[200] animate-in zoom-in-95 duration-200 overflow-hidden border border-gray-100">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+              <h4 className="text-xs font-bold text-gray-700 uppercase">Pilih Qori</h4>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {QORI_OPTIONS.map((qori) => (
+                  <button 
+                    key={qori.id}
+                    onClick={() => {
+                      setSelectedQori(qori.id);
+                      setIsQoriSelectorOpen(false);
+                      stopAudio(); // Stop audio when changing qori
+                    }}
+                    className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between border-b border-gray-50 hover:bg-teal-50 transition-colors ${selectedQori === qori.id ? 'bg-teal-50 text-[#00a896] font-bold' : 'text-gray-600'}`}
+                  >
+                    <span>{qori.name}</span>
+                    {selectedQori === qori.id && <Check size={16} />}
+                  </button>
+              ))}
+            </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto px-5 py-6" onClick={() => setIsQoriSelectorOpen(false)}>

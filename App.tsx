@@ -35,6 +35,7 @@ import SearchModal from './components/SearchModal';
 import NotificationModal, { NotificationItem } from './components/NotificationModal';
 import InfoModal from './components/InfoModal';
 import NewsDetailModal, { NewsDetailData } from './components/NewsDetailModal';
+import InstallPwaModal from './components/InstallPwaModal';
 
 export interface PrayerSchedule {
   subuh: string;
@@ -597,6 +598,9 @@ const App: React.FC = () => {
           <NavButton icon={<User size={20} />} label="Profil" onClick={() => setIsProfileOpen(true)} />
         </div>
       </nav>
+
+      {/* Install PWA Modal - Auto detected */}
+      <InstallPwaModal />
 
       {/* Modals / Pages */}
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
