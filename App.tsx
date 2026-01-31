@@ -278,7 +278,8 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 pt-4 flex flex-col items-center">
-        <div className="w-full px-6 flex justify-between items-center mb-6 relative z-20">
+        {/* Top Bar: Search - Location - Bell */}
+        <div className="w-full px-6 flex justify-between items-start mb-2 relative z-20 pt-2">
           <button 
             onClick={() => setIsSearchOpen(true)}
             className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"
@@ -286,6 +287,14 @@ const App: React.FC = () => {
             <Search size={22} />
           </button>
           
+          {/* Location moved here */}
+          <div className="flex flex-col items-center mt-1.5">
+             <div className="flex items-center space-x-1.5 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
+                <MapPin size={10} className="text-red-400 fill-red-400" />
+                <span className="text-[10px] font-bold text-white tracking-wide truncate max-w-[120px]">{locationName}</span>
+             </div>
+          </div>
+
           <button 
             onClick={() => setIsNotifOpen(true)}
             className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform"
@@ -295,17 +304,12 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="w-full flex flex-col items-center pb-8 pt-4 px-6 relative z-20">
-          <div className="mb-6">
-             <div className="w-24 h-24 bg-white rounded-full p-2.5 shadow-2xl flex items-center justify-center border-4 border-white active:scale-105 transition-transform overflow-hidden">
+        <div className="w-full flex flex-col items-center pb-8 pt-2 px-6 relative z-20">
+          {/* Logo with reduced border */}
+          <div className="mb-4">
+             <div className="w-24 h-24 bg-white rounded-full p-2.5 shadow-2xl flex items-center justify-center border-2 border-white active:scale-105 transition-transform overflow-hidden">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI" className="w-full h-full object-contain" />
              </div>
-          </div>
-
-          <div className="flex items-center space-x-2 mb-4 bg-black/20 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/10">
-            <MapPin size={14} className="text-red-400 fill-red-400" />
-            <span className="text-sm font-black text-white tracking-tight">{locationName}</span>
-            <button className="text-sm font-bold text-orange-400 active:scale-95 transition-transform px-1">(Ganti)</button>
           </div>
 
           <div className="text-center mb-2">
@@ -318,12 +322,12 @@ const App: React.FC = () => {
             <span className="mr-2 text-orange-400 font-black">-</span> {countdown}
           </div>
 
-          {/* Date display */}
-          <div className="text-[10px] font-black text-white tracking-wider bg-white/20 backdrop-blur-md px-6 py-2.5 rounded-full uppercase border border-white/20 shadow-xl flex items-center justify-center whitespace-nowrap overflow-hidden">
+          {/* Date display with Black Text */}
+          <div className="text-[10px] font-black text-gray-900 tracking-wider bg-white/40 backdrop-blur-md px-6 py-2.5 rounded-full uppercase border border-white/20 shadow-xl flex items-center justify-center whitespace-nowrap overflow-hidden">
             <span className="shrink-0">
               {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </span>
-            <span className="opacity-40 font-normal mx-2 text-[12px]">|</span>
+            <span className="opacity-60 font-bold mx-2 text-[12px]">|</span>
             <span className="shrink-0">
               {new Intl.DateTimeFormat('id-ID-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' })
                 .format(currentTime)
