@@ -4,12 +4,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/', // Menggunakan root path untuk production hosting
+  base: './', // Menggunakan relative path agar aman di subdirectory/hosting
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    emptyOutDir: true,
   },
   server: {
     port: 3000,
+    host: true // Expose to network
   }
 });
