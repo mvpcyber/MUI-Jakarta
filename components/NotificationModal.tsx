@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { Bell, X, CheckCheck, Clock, FileText, Trash2, BellOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, X, CheckCheck, Clock, FileText, Trash2, BellOff, BellRing } from 'lucide-react';
 
 export interface NotificationItem {
   id: number;
@@ -26,6 +26,24 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onRemove,
   onMarkAllRead
 }) => {
+  const [permission, setPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setPermission(Notification.permission);
+    }
+  }, [isOpen]);
+
+  const requestPermission = () => {
+    if (!('Notification' in window)) return;
+    Notification.requestPermission().then((perm) => {
+      setPermission(perm);
+      if (perm === 'granted') {
+         new Notification("Notifikasi Aktif", { body: "Jazakumullah Khairan, Anda akan menerima pengingat waktu sholat." });
+      }
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -41,6 +59,24 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           </button>
         </div>
         
+        {permission !== 'granted' && (
+           <div className="p-4 bg-orange-50 border-b border-orange-100 flex items-start space-x-3">
+              <div className="p-2 bg-orange-100 rounded-full text-orange-600 shrink-0">
+                 <BellRing size={18} />
+              </div>
+              <div className="flex-1">
+                 <h4 className="text-xs font-bold text-gray-800 mb-1">Aktifkan Pengingat Sholat</h4>
+                 <p className="text-[10px] text-gray-500 mb-2">Izinkan browser mengirim notifikasi agar Anda tidak ketinggalan waktu sholat.</p>
+                 <button 
+                   onClick={requestPermission}
+                   className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider"
+                 >
+                    Izinkan Notifikasi
+                 </button>
+              </div>
+           </div>
+        )}
+
         <div className="max-h-[60vh] overflow-y-auto bg-[#f8fafc] min-h-[300px]">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">

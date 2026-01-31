@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   MapPin, 
   Home, 
@@ -135,6 +134,9 @@ const App: React.FC = () => {
   const [locationName, setLocationName] = useState("Mendeteksi Lokasi...");
   const [prayerSchedule, setPrayerSchedule] = useState<PrayerSchedule | null>(null);
 
+  // Notification Logic State
+  const sentNotificationsRef = useRef<Set<string>>(new Set());
+
   // News State
   const [homeNews, setHomeNews] = useState<NewsDetailData[]>([]);
   const [newsPage, setNewsPage] = useState(1);
@@ -158,11 +160,94 @@ const App: React.FC = () => {
     setNotifications(prev => prev.map(n => ({...n, read: true})));
   };
 
-  // Timer untuk jam digital
+  // --- Logic Push Notification Browser ---
+  const sendBrowserNotification = (title: string, body: string) => {
+    if (!("Notification" in window)) return;
+
+    if (Notification.permission === "granted") {
+      new Notification(title, {
+        body: body,
+        icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+        badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+        vibrate: [200, 100, 200]
+      } as any);
+      
+      // Tambahkan ke in-app notification list juga
+      const newNotif: NotificationItem = {
+        id: Date.now(),
+        type: 'prayer',
+        title: title,
+        desc: body,
+        time: 'Baru saja',
+        read: false
+      };
+      setNotifications(prev => [newNotif, ...prev]);
+
+    }
+  };
+
+  const checkPrayerNotifications = () => {
+    if (!prayerSchedule) return;
+
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    // Reset notification tracker at midnight
+    if (currentHour === 0 && currentMinute === 0) {
+      sentNotificationsRef.current.clear();
+    }
+
+    const prayerTimesList = [
+      { name: 'Subuh', time: prayerSchedule.subuh },
+      { name: 'Dzuhur', time: prayerSchedule.dzuhur },
+      { name: 'Ashar', time: prayerSchedule.ashar },
+      { name: 'Maghrib', time: prayerSchedule.maghrib },
+      { name: 'Isya', time: prayerSchedule.isya }
+    ];
+
+    prayerTimesList.forEach(prayer => {
+      const [pHour, pMinute] = prayer.time.split(':').map(Number);
+      const prayerDate = new Date();
+      prayerDate.setHours(pHour, pMinute, 0, 0);
+      
+      const diffMs = prayerDate.getTime() - now.getTime();
+      const diffMinutes = Math.floor(diffMs / 60000);
+
+      // Check 1: 10 Menit Sebelum (Antara 9-10 menit)
+      if (diffMinutes === 10) {
+         const key = `${prayer.name}-10min-${now.getDate()}`;
+         if (!sentNotificationsRef.current.has(key)) {
+            sendBrowserNotification(
+              `Menuju ${prayer.name}`, 
+              `10 Menit lagi menuju waktu sholat ${prayer.name} untuk wilayah ${locationName}.`
+            );
+            sentNotificationsRef.current.add(key);
+         }
+      }
+
+      // Check 2: Tepat Waktu (Antara 0-1 menit)
+      if (currentHour === pHour && currentMinute === pMinute) {
+         const key = `${prayer.name}-now-${now.getDate()}`;
+         if (!sentNotificationsRef.current.has(key)) {
+            sendBrowserNotification(
+              `Waktu ${prayer.name} Tiba`, 
+              `Telah masuk waktu sholat ${prayer.name} untuk wilayah ${locationName}. Selamat menunaikan ibadah sholat.`
+            );
+            sentNotificationsRef.current.add(key);
+         }
+      }
+    });
+  };
+
+  // Timer untuk jam digital & Cek Notifikasi
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+      checkPrayerNotifications();
+    }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [prayerSchedule, locationName]); // Add dependencies needed for checkPrayerNotifications
 
   // Fetch News from MUI Jakarta
   const fetchHomeNews = useCallback(async (page: number) => {
