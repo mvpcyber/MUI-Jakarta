@@ -273,13 +273,13 @@ const App: React.FC = () => {
   return (
     <div className="max-w-md mx-auto bg-[#f8fafc] min-h-screen relative shadow-2xl overflow-x-hidden">
       {/* Header Background */}
-      <div className="absolute top-0 left-0 right-0 h-[420px] islamic-bg z-0">
+      <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
       </div>
 
       <div className="relative z-10 pt-4 flex flex-col items-center">
         {/* Top Bar: Search - Location - Bell */}
-        <div className="w-full px-6 flex justify-between items-start mb-2 relative z-20 pt-2">
+        <div className="w-full px-6 flex justify-between items-start mb-0 relative z-20 pt-2">
           <button 
             onClick={() => setIsSearchOpen(true)}
             className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"
@@ -304,21 +304,21 @@ const App: React.FC = () => {
           </button>
         </div>
 
-        <div className="w-full flex flex-col items-center pb-8 pt-2 px-6 relative z-20">
+        <div className="w-full flex flex-col items-center pb-6 pt-0 px-6 relative z-20">
           {/* Logo with reduced border */}
-          <div className="mb-4">
-             <div className="w-24 h-24 bg-white rounded-full p-2.5 shadow-2xl flex items-center justify-center border-2 border-white active:scale-105 transition-transform overflow-hidden">
+          <div className="mb-2">
+             <div className="w-20 h-20 bg-white rounded-full p-1 shadow-2xl flex items-center justify-center border border-white active:scale-105 transition-transform overflow-hidden">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI" className="w-full h-full object-contain" />
              </div>
           </div>
 
           <div className="text-center mb-2">
-            <h2 className="text-4xl font-black text-white tracking-tighter drop-shadow-lg uppercase">
+            <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-lg uppercase">
               {nextPrayer.name}' {nextPrayer.time} <span className="text-sm font-bold opacity-70">WIB</span>
             </h2>
           </div>
 
-          <div className="text-sm font-bold text-white/90 mb-6 bg-black/30 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/5 flex items-center shadow-lg">
+          <div className="text-sm font-bold text-white/90 mb-3 bg-black/30 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/5 flex items-center shadow-lg">
             <span className="mr-2 text-orange-400 font-black">-</span> {countdown}
           </div>
 
@@ -394,16 +394,13 @@ const App: React.FC = () => {
                   <div 
                     key={item.id} 
                     onClick={() => handleNewsClick(item)}
-                    className="block bg-white p-5 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30 cursor-pointer"
+                    className="flex flex-col bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30 cursor-pointer overflow-hidden"
                   >
-                     <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] font-black text-[#00a896] uppercase bg-teal-50 px-2 py-0.5 rounded-md tracking-wider">{item.category}</span>
-                        <div className="flex items-center text-gray-400">
-                          <Calendar size={10} className="mr-1" />
-                          <span className="text-[10px] font-bold">{item.date}</span>
-                        </div>
+                     {/* Image & Title Only (No Category, No Date) */}
+                     <div className="w-full h-40 rounded-[16px] overflow-hidden mb-3 relative bg-gray-100">
+                        <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                      </div>
-                     <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2" dangerouslySetInnerHTML={{ __html: item.title }} />
+                     <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 px-1 mb-1" dangerouslySetInnerHTML={{ __html: item.title }} />
                   </div>
                 ))}
 
@@ -437,11 +434,11 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Persistent Floating Bottom Nav */}
-      <nav className="fixed bottom-6 left-4 right-4 max-w-[calc(100%-2rem)] mx-auto bg-white/90 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] flex justify-between items-end px-2 py-2 z-[200]">
+      {/* Persistent Floating Bottom Nav - Fixed at Bottom */}
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
         
         {/* Left Side */}
-        <div className="flex-1 flex justify-around pb-1">
+        <div className="flex-1 flex justify-between pr-4 pb-1">
           <NavButton icon={<BookOpen size={20} />} label="Al-Quran" onClick={() => setIsQuranOpen(true)} />
           <NavButton icon={<FileText size={20} />} label="Fatwa" onClick={() => setIsFatwaOpen(true)} />
         </div>
@@ -462,7 +459,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Side */}
-        <div className="flex-1 flex justify-around pb-1">
+        <div className="flex-1 flex justify-between pl-4 pb-1">
           <NavButton icon={<Clock size={20} />} label="Jadwal" onClick={() => setIsPrayerPageOpen(true)} />
           <NavButton icon={<User size={20} />} label="Profil" onClick={() => setIsProfileOpen(true)} />
         </div>

@@ -11,16 +11,7 @@ import {
   ScrollText,
   AlertCircle
 } from 'lucide-react';
-
-interface FatwaItem {
-  id: number;
-  title: string;
-  nomor: string;
-  tahun: string;
-  tentang: string;
-  url: string;
-  date_formatted: string;
-}
+import FatwaDetailModal, { FatwaDetailData } from './FatwaDetailModal';
 
 interface FatwaPageProps {
   isOpen: boolean;
@@ -28,30 +19,47 @@ interface FatwaPageProps {
 }
 
 const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
-  const [fatwas, setFatwas] = useState<FatwaItem[]>([]);
+  const [fatwas, setFatwas] = useState<FatwaDetailData[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
   const [usingFallback, setUsingFallback] = useState(false);
 
-  // Data Fallback (Jika API CORS Blocked)
-  const fallbackFatwas: FatwaItem[] = [
-    { id: 1, title: "Hukum Dukungan terhadap Perjuangan Palestina", nomor: "83", tahun: "2023", tentang: "Fatwa tentang Hukum Dukungan terhadap Perjuangan Palestina", url: "https://mui.or.id/wp-content/uploads/2023/11/Fatwa-MUI-Nomor-83-Tahun-2023-tentang-Hukum-Dukungan-terhadap-Perjuangan-Palestina.pdf", date_formatted: "08 November 2023" },
-    { id: 2, title: "Hukum YouTuber, Selebgram, dan Pelaku Ekonomi Kreatif", nomor: "24", tahun: "2017", tentang: "Hukum dan Pedoman Bermuamalah Melalui Media Sosial", url: "https://mui.or.id/", date_formatted: "12 Mei 2017" },
+  // Detail Modal State
+  const [selectedFatwa, setSelectedFatwa] = useState<FatwaDetailData | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  // Data Fallback (Jika API CORS Blocked) - Ditambahkan Content Dummy untuk internal view
+  const fallbackFatwas: FatwaDetailData[] = [
+    { 
+        id: 1, 
+        title: "Hukum Dukungan terhadap Perjuangan Palestina", 
+        nomor: "83", 
+        tahun: "2023", 
+        tentang: "Fatwa tentang Hukum Dukungan terhadap Perjuangan Palestina", 
+        content: "<p>Mendukung perjuangan kemerdekaan Palestina atas agresi Israel hukumnya <strong>wajib</strong>. Dukungan tersebut, antara lain, dapat berupa pendistribusian zakat, infaq dan sedekah untuk kepentingan perjuangan rakyat Palestina.</p><p>Pada dasarnya dana zakat harus didistribusikan kepada mustahik yang berada di sekitar muzakki. Dalam hal keadaan darurat atau kebutuhan yang mendesak, dana zakat boleh didistribusikan ke mustahik yang berada di tempat yang lebih jauh, seperti untuk perjuangan Palestina.</p>",
+        url: "https://mui.or.id/wp-content/uploads/2023/11/Fatwa-MUI-Nomor-83-Tahun-2023-tentang-Hukum-Dukungan-terhadap-Perjuangan-Palestina.pdf", 
+        date_formatted: "08 November 2023" 
+    },
+    { 
+        id: 2, 
+        title: "Hukum YouTuber, Selebgram, dan Pelaku Ekonomi Kreatif", 
+        nomor: "24", 
+        tahun: "2017", 
+        tentang: "Hukum dan Pedoman Bermuamalah Melalui Media Sosial", 
+        content: "<p>Setiap Muslim yang bermuamalah melalui media sosial wajib memperhatikan hal-hal sebagai berikut: <br/>1. Senantiasa meningkatkan keimanan dan ketakwaan, tidak mendorong kekufuran dan kemaksiatan.<br/>2. Mempererat ukhuwah (persaudaraan), baik ukhuwah Islamiyah, ukhuwah wathaniyah, maupun ukhuwah insaniyah.<br/>3. Memperkokoh kerukunan, baik intern umat beragama, antar umat beragama, maupun antara umat beragama dengan Pemerintah.</p>",
+        url: "https://mui.or.id/", 
+        date_formatted: "12 Mei 2017" 
+    },
     { id: 3, title: "Panduan Penyelenggaraan Ibadah di Bulan Ramadhan", nomor: "Kep-28", tahun: "2022", tentang: "Panduan Ibadah Ramadhan dan Idul Fitri", url: "https://mui.or.id/", date_formatted: "01 April 2022" },
     { id: 4, title: "Hukum Cryptocurrency (Uang Kripto)", nomor: "09", tahun: "2021", tentang: "Penggunaan Cryptocurrency Sebagai Mata Uang Hukumnya Haram", url: "https://mui.or.id/", date_formatted: "11 November 2021" },
     { id: 5, title: "Hukum Pinjaman Online (Pinjol)", nomor: "P-12", tahun: "2021", tentang: "Penyelenggaraan Pinjaman Online", url: "https://mui.or.id/", date_formatted: "20 Agustus 2021" },
-    { id: 6, title: "Hukum Vaksin COVID-19 Produksi Sinovac", nomor: "02", tahun: "2021", tentang: "Produk Vaksin Covid-19 dari Sinovac Life Sciences Co. Ltd", url: "https://mui.or.id/", date_formatted: "11 Januari 2021" },
-    { id: 7, title: "Penyelenggaraan Ibadah Saat Wabah COVID-19", nomor: "14", tahun: "2020", tentang: "Penyelenggaraan Ibadah dalam Situasi Terjadi Wabah COVID-19", url: "https://mui.or.id/", date_formatted: "16 Maret 2020" },
   ];
 
   const fetchFatwas = async () => {
     setLoading(true);
     setUsingFallback(false);
     try {
-      // Mencoba fetch dari API MUI Pusat (mui.or.id)
-      // Note: Seringkali mui.or.id memblokir akses Cross-Origin (CORS) dari domain lain.
-      // Kita gunakan timeout agar tidak menunggu terlalu lama jika blocked.
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -65,12 +73,13 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
       const data = await response.json();
       
       if (Array.isArray(data) && data.length > 0) {
-        const formatted: FatwaItem[] = data.map((item: any) => ({
+        const formatted: FatwaDetailData[] = data.map((item: any) => ({
           id: item.id,
           title: item.title.rendered.replace(/&#8217;/g, "'"),
           nomor: "Info",
           tahun: new Date(item.date).getFullYear().toString(),
           tentang: item.excerpt.rendered.replace(/<[^>]+>/g, '').slice(0, 80) + "...",
+          content: item.content.rendered, // Ambil konten lengkap
           url: item.link,
           date_formatted: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
         }));
@@ -100,9 +109,15 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
 
   const totalPages = Math.ceil(fatwas.length / itemsPerPage);
 
+  const handleFatwaClick = (item: FatwaDetailData) => {
+    setSelectedFatwa(item);
+    setIsDetailOpen(true);
+  };
+
   if (!isOpen) return null;
 
   return (
+    <>
     <div className="fixed inset-0 z-[140] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
       <div 
         className="pt-12 pb-8 px-6 relative overflow-hidden shadow-lg bg-[#00a896]"
@@ -146,7 +161,11 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
             )}
 
             {pagedFatwas.map((item) => (
-              <div key={item.id} className="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm relative group hover:shadow-md transition-all">
+              <div 
+                key={item.id} 
+                className="bg-white rounded-[24px] p-5 border border-gray-100 shadow-sm relative group hover:shadow-md transition-all cursor-pointer"
+                onClick={() => handleFatwaClick(item)}
+              >
                 <div className="flex items-start justify-between mb-3">
                    <div className="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">
                       Fatwa {item.tahun}
@@ -165,17 +184,15 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                   <a 
-                     href={item.url} 
-                     target="_blank" 
-                     rel="noopener noreferrer"
+                   <button 
                      className="flex-1 bg-[#00a896] text-white py-2.5 rounded-xl text-xs font-bold flex items-center justify-center uppercase tracking-wider active:scale-95 transition-transform"
                    >
                      <FileText size={14} className="mr-2" /> Buka Detail
-                   </a>
-                   <button className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center active:bg-indigo-100">
-                      <Download size={16} />
                    </button>
+                   {/* Tombol sekunder hanya ikon */}
+                   <div className="w-10 h-10 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center">
+                      <ChevronRight size={18} />
+                   </div>
                 </div>
               </div>
             ))}
@@ -216,6 +233,13 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
         )}
       </div>
     </div>
+    
+    <FatwaDetailModal 
+      isOpen={isDetailOpen}
+      onClose={() => setIsDetailOpen(false)}
+      fatwa={selectedFatwa}
+    />
+    </>
   );
 };
 

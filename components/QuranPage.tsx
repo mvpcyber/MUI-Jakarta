@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, ArrowLeft, Loader2, Book, Star, ChevronRight, Eye, EyeOff, Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import { Search, ArrowLeft, Loader2, Play, Pause, Volume2, Eye, EyeOff, Settings2, Check } from 'lucide-react';
 
 interface Surah {
   nomor: number;
@@ -34,6 +34,15 @@ interface QuranPageProps {
   onClose: () => void;
 }
 
+// Mapping Qori ID based on Equran.id API v2
+const QORI_OPTIONS = [
+  { id: '01', name: 'Abdullah Al-Juhany' },
+  { id: '02', name: 'Abdul Muhsin Al-Qasim' },
+  { id: '03', name: 'Abdurrahman as-Sudais' },
+  { id: '04', name: 'Ibrahim Al-Dossari' },
+  { id: '05', name: 'Misyari Rasyid Al-Afasy' },
+];
+
 const toArabicDigits = (num: number) => {
   const digits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
   return num.toString().split('').map(d => digits[parseInt(d)]).join('');
@@ -48,6 +57,10 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
   const [showLatin, setShowLatin] = useState(true);
   const [showTranslation, setShowTranslation] = useState(true);
   
+  // Audio Config State
+  const [selectedQori, setSelectedQori] = useState('05'); // Default Misyari
+  const [isQoriSelectorOpen, setIsQoriSelectorOpen] = useState(false);
+
   // State for detail view
   const [selectedSurah, setSelectedSurah] = useState<Surah | null>(null);
   const [surahDetail, setSurahDetail] = useState<SurahDetail | null>(null);
@@ -112,6 +125,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
     stopAudio();
     setSelectedSurah(null);
     setSurahDetail(null);
+    setIsQoriSelectorOpen(false);
   };
 
   const stopAudio = () => {
@@ -140,6 +154,10 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
         setActiveAyat(ayatNum);
       }
     }
+  };
+
+  const getAudioUrl = (audioObject: {[key: string]: string}) => {
+    return audioObject[selectedQori] || audioObject['05'] || Object.values(audioObject)[0];
   };
 
   const filteredSurahs = surahs.filter(s => 
@@ -192,10 +210,10 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
 
           {selectedSurah && !loadingDetail && surahDetail ? (
              <button 
-                onClick={() => toggleAudio(surahDetail.audioFull["01"])}
-                className={`p-2.5 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform ${isPlaying && activeAyat === null ? 'bg-orange-500 shadow-lg shadow-orange-500/30' : 'bg-white/10'}`}
+                onClick={() => setIsQoriSelectorOpen(!isQoriSelectorOpen)}
+                className={`p-2.5 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform ${isQoriSelectorOpen ? 'bg-[#5eead4] text-teal-900' : 'bg-white/10'}`}
              >
-               {isPlaying && activeAyat === null ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
+               <Settings2 size={24} />
              </button>
           ) : (
             <div className="w-10"></div>
@@ -205,6 +223,15 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
         {/* Action Controls for Detail View */}
         {selectedSurah && !loadingDetail && (
           <div className="relative z-10 flex justify-center space-x-3 mt-4">
+             {/* Play Full Audio Button - Contextual */}
+             <button 
+                onClick={() => toggleAudio(getAudioUrl(surahDetail?.audioFull || {}))}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider transition-all ${isPlaying && activeAyat === null ? 'bg-orange-500 border-orange-500 text-white' : 'bg-white/20 border-white/20 text-white'}`}
+             >
+                {isPlaying && activeAyat === null ? <Pause size={14} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
+                <span>Putar Surat</span>
+             </button>
+
             <button 
               onClick={() => setShowLatin(!showLatin)}
               className={`flex items-center space-x-2 px-4 py-2 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider transition-all ${showLatin ? 'bg-white/20 border-white/20 text-white' : 'bg-black/20 border-white/10 text-white/50'}`}
@@ -212,13 +239,31 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
               {showLatin ? <Eye size={14} /> : <EyeOff size={14} />}
               <span>Latin</span>
             </button>
-            <button 
-              onClick={() => setShowTranslation(!showTranslation)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider transition-all ${showTranslation ? 'bg-white/20 border-white/20 text-white' : 'bg-black/20 border-white/10 text-white/50'}`}
-            >
-              {showTranslation ? <Eye size={14} /> : <EyeOff size={14} />}
-              <span>Arti</span>
-            </button>
+          </div>
+        )}
+
+        {/* Qori Selector Dropdown (Absolute) */}
+        {isQoriSelectorOpen && (
+          <div className="absolute top-24 right-6 w-64 bg-white rounded-2xl shadow-2xl z-50 animate-in zoom-in-95 duration-200 overflow-hidden border border-gray-100">
+             <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+                <h4 className="text-xs font-bold text-gray-700 uppercase">Pilih Penantun (Qori)</h4>
+             </div>
+             <div className="max-h-60 overflow-y-auto">
+                {QORI_OPTIONS.map((qori) => (
+                   <button 
+                     key={qori.id}
+                     onClick={() => {
+                        setSelectedQori(qori.id);
+                        setIsQoriSelectorOpen(false);
+                        stopAudio(); // Stop audio when changing qori
+                     }}
+                     className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between border-b border-gray-50 hover:bg-teal-50 transition-colors ${selectedQori === qori.id ? 'bg-teal-50 text-[#00a896] font-bold' : 'text-gray-600'}`}
+                   >
+                      <span>{qori.name}</span>
+                      {selectedQori === qori.id && <Check size={16} />}
+                   </button>
+                ))}
+             </div>
           </div>
         )}
 
@@ -240,7 +285,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto px-5 py-6">
+      <div className="flex-1 overflow-y-auto px-5 py-6" onClick={() => setIsQoriSelectorOpen(false)}>
         {selectedSurah ? (
           /* Detail View: Ayat-ayat Surat */
           loadingDetail ? (
@@ -273,7 +318,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
                     </div>
 
                     <button 
-                      onClick={() => toggleAudio(a.audio["01"], a.nomorAyat)}
+                      onClick={() => toggleAudio(getAudioUrl(a.audio), a.nomorAyat)}
                       className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${activeAyat === a.nomorAyat && isPlaying ? 'bg-orange-500 text-white' : 'bg-gray-50 text-gray-400 hover:bg-teal-50 hover:text-teal-600'}`}
                     >
                       {activeAyat === a.nomorAyat && isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
@@ -370,8 +415,8 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
               <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider truncate">
                 {activeAyat ? `Ayat ${activeAyat}` : 'Murottal Surat'}
               </h4>
-              <p className="text-[10px] font-bold text-teal-600 uppercase tracking-tight">
-                {selectedSurah?.namaLatin || 'Al-Quran'}
+              <p className="text-[10px] font-bold text-teal-600 uppercase tracking-tight truncate">
+                {QORI_OPTIONS.find(q => q.id === selectedQori)?.name} • {selectedSurah?.namaLatin}
               </p>
            </div>
            <div className="flex items-center space-x-2">
