@@ -3,10 +3,12 @@
   "name": "MUI Jakarta",
   "short_name": "MUI Jakarta",
   "description": "Aplikasi Resmi MUI Provinsi DKI Jakarta",
-  "start_url": "https://m.muijakarta.or.id",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#00827f",
   "theme_color": "#00827f",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
