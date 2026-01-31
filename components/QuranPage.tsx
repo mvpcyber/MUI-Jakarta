@@ -211,9 +211,10 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
           {selectedSurah && !loadingDetail && surahDetail ? (
              <button 
                 onClick={() => setIsQoriSelectorOpen(!isQoriSelectorOpen)}
-                className={`p-2.5 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform ${isQoriSelectorOpen ? 'bg-[#5eead4] text-teal-900' : 'bg-white/10'}`}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-full backdrop-blur-md text-[10px] font-black uppercase tracking-wider border transition-all active:scale-95 ${isQoriSelectorOpen ? 'bg-[#5eead4] text-teal-900 border-[#5eead4]' : 'bg-white/10 text-white border-white/10'}`}
              >
-               <Settings2 size={24} />
+               <Settings2 size={14} />
+               <span>Pilih Qori</span>
              </button>
           ) : (
             <div className="w-10"></div>
@@ -222,7 +223,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
 
         {/* Action Controls for Detail View */}
         {selectedSurah && !loadingDetail && (
-          <div className="relative z-10 flex justify-center space-x-3 mt-4">
+          <div className="relative z-10 flex justify-center flex-wrap gap-2 mt-4">
              {/* Play Full Audio Button - Contextual */}
              <button 
                 onClick={() => toggleAudio(getAudioUrl(surahDetail?.audioFull || {}))}
@@ -238,6 +239,14 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
             >
               {showLatin ? <Eye size={14} /> : <EyeOff size={14} />}
               <span>Latin</span>
+            </button>
+
+            <button 
+              onClick={() => setShowTranslation(!showTranslation)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-full backdrop-blur-md border text-[10px] font-black uppercase tracking-wider transition-all ${showTranslation ? 'bg-white/20 border-white/20 text-white' : 'bg-black/20 border-white/10 text-white/50'}`}
+            >
+              {showTranslation ? <Eye size={14} /> : <EyeOff size={14} />}
+              <span>Arti</span>
             </button>
           </div>
         )}
@@ -294,7 +303,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Memuat Ayat...</p>
             </div>
           ) : surahDetail ? (
-            <div className="space-y-6 pb-24">
+            <div className={`space-y-6 ${currentAudioUrl ? 'pb-64' : 'pb-28'}`}>
               {/* Bismillah (if not At-Tawbah) */}
               {selectedSurah.nomor !== 1 && selectedSurah.nomor !== 9 && (
                 <div className="text-center py-8">
@@ -405,17 +414,17 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Mini Player - Floating at bottom */}
+      {/* Mini Player - Floating at bottom (Raised to avoid bottom nav coverage) */}
       {currentAudioUrl && (
-        <div className="fixed bottom-6 left-6 right-6 bg-white rounded-[28px] shadow-2xl border border-gray-100 p-4 flex items-center space-x-4 animate-in slide-in-from-bottom duration-500 z-[200]">
-           <div className="w-12 h-12 bg-[#00a896] rounded-2xl flex items-center justify-center text-white shadow-lg shadow-teal-200">
-              <Volume2 size={24} />
+        <div className="fixed bottom-28 left-6 right-6 bg-white rounded-[24px] shadow-2xl border border-gray-100 p-3 flex items-center space-x-3 animate-in slide-in-from-bottom duration-500 z-[200]">
+           <div className="w-10 h-10 bg-[#00a896] rounded-xl flex items-center justify-center text-white shadow-lg shadow-teal-200 shrink-0">
+              <Volume2 size={20} />
            </div>
            <div className="flex-1 overflow-hidden">
-              <h4 className="text-xs font-black text-gray-800 uppercase tracking-wider truncate">
+              <h4 className="text-[11px] font-black text-gray-800 uppercase tracking-wider truncate leading-tight">
                 {activeAyat ? `Ayat ${activeAyat}` : 'Murottal Surat'}
               </h4>
-              <p className="text-[10px] font-bold text-teal-600 uppercase tracking-tight truncate">
+              <p className="text-[9px] font-bold text-teal-600 uppercase tracking-tight truncate leading-tight">
                 {QORI_OPTIONS.find(q => q.id === selectedQori)?.name} • {selectedSurah?.namaLatin}
               </p>
            </div>
@@ -427,15 +436,15 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
                     else audioRef.current.play();
                   }
                 }}
-                className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
               >
-                {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+                {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
               </button>
               <button 
                 onClick={stopAudio}
-                className="w-10 h-10 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center active:scale-90 transition-transform"
+                className="w-9 h-9 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center active:scale-90 transition-transform"
               >
-                <ArrowLeft className="rotate-[270deg]" size={20} />
+                <ArrowLeft className="rotate-[270deg]" size={16} />
               </button>
            </div>
         </div>

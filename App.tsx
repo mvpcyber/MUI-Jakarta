@@ -577,7 +577,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Center Button (Beranda) */}
-        <div className="relative -top-8 px-2 flex flex-col items-center">
+        <div className="relative -top-6 px-2 flex flex-col items-center">
            <button 
              onClick={() => {
                 // Beranda logic: Close all modals to reveal main content
@@ -585,9 +585,9 @@ const App: React.FC = () => {
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
                 setIsMosqueOpen(false);
              }}
-             className="w-16 h-16 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
+             className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            >
-              <Home size={28} />
+              <Home size={24} />
            </button>
            <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span>
         </div>

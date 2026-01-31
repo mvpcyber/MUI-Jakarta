@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Download, X, Smartphone, ShieldCheck } from 'lucide-react';
+import { Download, X, ShieldCheck } from 'lucide-react';
 
 const InstallPwaModal: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -63,54 +63,79 @@ const InstallPwaModal: React.FC = () => {
   if (!isVisible) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-[250] animate-in slide-in-from-bottom duration-700">
-      <div className="bg-white rounded-[24px] p-5 shadow-2xl border border-teal-100 relative overflow-hidden">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 animate-in fade-in duration-500">
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
+      
+      {/* Centered Modal Content */}
+      <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 transform transition-all">
         {/* Background Decoration */}
-        <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-[100px] -mr-6 -mt-6 pointer-events-none opacity-60"></div>
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-50 rounded-tr-[80px] -ml-6 -mb-6 pointer-events-none opacity-60"></div>
 
         <button 
           onClick={handleClose}
-          className="absolute top-3 right-3 p-1.5 bg-gray-50 rounded-full text-gray-400 hover:bg-gray-100"
+          className="absolute top-4 right-4 p-2 bg-gray-50 rounded-full text-gray-400 hover:bg-gray-100 z-20 transition-colors"
         >
-          <X size={16} />
+          <X size={20} />
         </button>
 
-        <div className="flex items-start space-x-4">
-          <div className="w-14 h-14 bg-white rounded-2xl shadow-md border border-gray-100 flex items-center justify-center shrink-0 p-1">
+        <div className="flex flex-col items-center text-center relative z-10 pt-2">
+          <div className="w-20 h-20 bg-white rounded-[24px] shadow-lg border-2 border-teal-50 flex items-center justify-center p-2 mb-4">
              <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI Logo" className="w-full h-full object-contain" />
           </div>
-          <div className="flex-1 pr-6">
-            <h3 className="text-sm font-black text-gray-800 leading-tight mb-1">
-              Install Aplikasi MUI Jakarta
-            </h3>
-            <p className="text-[11px] text-gray-500 leading-relaxed">
-              Akses jadwal sholat, fatwa, dan berita lebih cepat tanpa membuka browser.
-            </p>
-          </div>
-        </div>
 
-        <div className="mt-4 flex items-center space-x-3">
+          <span className="text-[11px] font-bold text-[#00a896] uppercase tracking-widest mb-3 bg-teal-50 px-3 py-1 rounded-full border border-teal-100">
+             Assalamualaikum
+          </span>
+
+          <h3 className="text-xl font-black text-gray-800 leading-tight mb-3">
+            Install Aplikasi MUI Jakarta
+          </h3>
+          
+          <p className="text-sm text-gray-500 leading-relaxed mb-6 px-2">
+            Dapatkan akses lebih cepat ke jadwal sholat, fatwa terbaru, dan layanan umat langsung dari layar utama HP Anda.
+          </p>
+
           {isIOS ? (
-            <div className="w-full bg-gray-50 rounded-xl p-3 border border-gray-100 text-[10px] text-gray-600 leading-relaxed">
-               Untuk menginstall di iOS: Tap tombol <span className="font-bold">Share</span> di browser Safari, lalu pilih <span className="font-bold">"Add to Home Screen"</span>.
+            <div className="w-full bg-gray-50 rounded-2xl p-4 border border-gray-100 text-xs text-gray-600 leading-relaxed text-left mb-2">
+               <div className="flex items-start space-x-3 mb-2">
+                   <div className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">1</div>
+                   <span>Tap tombol <span className="font-bold">Share</span> di browser.</span>
+               </div>
+               <div className="flex items-start space-x-3">
+                   <div className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center shrink-0 font-bold text-[10px]">2</div>
+                   <span>Pilih menu <span className="font-bold">"Add to Home Screen"</span>.</span>
+               </div>
             </div>
           ) : (
+            <div className="w-full space-y-3">
+                <button 
+                    onClick={handleInstallClick}
+                    className="w-full bg-[#00a896] text-white py-3.5 rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-teal-200 active:scale-95 transition-all flex items-center justify-center space-x-2"
+                >
+                    <Download size={18} />
+                    <span>Install Sekarang</span>
+                </button>
+            </div>
+          )}
+          
+          {!isIOS && (
             <button 
-                onClick={handleInstallClick}
-                className="flex-1 bg-[#00a896] text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-teal-200 active:scale-95 transition-all flex items-center justify-center space-x-2"
+                onClick={handleClose}
+                className="mt-3 py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
             >
-                <Download size={16} />
-                <span>Install Sekarang</span>
+                Nanti Saja
             </button>
           )}
-        </div>
-        
-        {!isIOS && (
-            <div className="mt-3 flex justify-center items-center space-x-1.5">
-                <ShieldCheck size={10} className="text-teal-600" />
-                <span className="text-[9px] font-bold text-teal-600 uppercase tracking-wide">Aplikasi Resmi & Aman</span>
+
+          {!isIOS && (
+            <div className="mt-4 flex justify-center items-center space-x-1.5 opacity-80">
+                <ShieldCheck size={12} className="text-teal-600" />
+                <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wide">Aplikasi Resmi & Aman</span>
             </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
