@@ -153,10 +153,6 @@ const App: React.FC = () => {
         shouldShow = true;
       }
     }
-
-    // 3. Camera is usually 'prompt' by default until requested. 
-    // We show modal if others are needed or just to be safe if strictly enforced.
-    // For now, if notification OR geo is not granted, we show the modal which includes Camera.
     
     if (shouldShow) {
       setIsPermissionModalOpen(true);

@@ -2,8 +2,6 @@
   "name": "MUI JAKARTA",
   "description": "Aplikasi Web Mobile Resmi MUI Jakarta dengan fitur Berita, Fatwa, dan Layanan Ummat.",
   "requestFramePermissions": [
-    "geolocation",
-    "camera",
-    "microphone"
+    "geolocation"
   ]
 }

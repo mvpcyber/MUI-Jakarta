@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { MapPin, Bell, Camera, ShieldCheck, CheckCircle, X, ChevronRight } from 'lucide-react';
+import { MapPin, Bell, ShieldCheck, CheckCircle, X, ChevronRight } from 'lucide-react';
 
 interface PermissionModalProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface PermissionModalProps {
 const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPermissionsGranted }) => {
   const [geoStatus, setGeoStatus] = useState<PermissionState | 'unknown'>('unknown');
   const [notifStatus, setNotifStatus] = useState<NotificationPermission>('default');
-  const [cameraStatus, setCameraStatus] = useState<'granted' | 'prompt' | 'denied'>('prompt');
   
   const [isRequesting, setIsRequesting] = useState(false);
 
@@ -40,10 +39,6 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
         setGeoStatus('prompt'); 
       }
     }
-
-    // Check Camera (Approximation based on previous successful stream or lack thereof)
-    // Note: Browser permissions API for camera is inconsistent, we default to 'prompt' unless we track it manually
-    // or try to get media. Here we simply manage UI state.
   };
 
   const handleRequestAll = async () => {
@@ -67,32 +62,17 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
         });
       }
 
-      // 3. Request Camera
-      // Note: Requests camera stream then immediately stops it to trigger the permission prompt
-      if (cameraStatus !== 'granted') {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          setCameraStatus('granted');
-          // Stop stream immediately
-          stream.getTracks().forEach(track => track.stop());
-        } catch (err) {
-          setCameraStatus('denied');
-        }
-      }
-
-      // Check if mostly granted or user interact
+      // Check if granted or user interact
       onPermissionsGranted();
       
     } catch (error) {
       console.error("Permission error", error);
     } finally {
       setIsRequesting(false);
-      // Optional: Close modal automatically if all criticals are granted? 
-      // For now we let user click "Selesai" or close.
     }
   };
 
-  const allGranted = notifStatus === 'granted' && geoStatus === 'granted' && cameraStatus === 'granted';
+  const allGranted = notifStatus === 'granted' && geoStatus === 'granted';
 
   if (!isOpen) return null;
 
@@ -139,17 +119,6 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
             <div className="flex-1">
               <h4 className="text-sm font-bold text-gray-800">Notifikasi</h4>
               <p className="text-[10px] text-gray-500">Pengingat waktu sholat dan informasi fatwa terbaru.</p>
-            </div>
-          </div>
-
-          {/* Camera Item */}
-          <div className="flex items-center space-x-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${cameraStatus === 'granted' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {cameraStatus === 'granted' ? <CheckCircle size={20} /> : <Camera size={20} />}
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-gray-800">Kamera</h4>
-              <p className="text-[10px] text-gray-500">Untuk fitur scan barcode produk halal (Coming Soon).</p>
             </div>
           </div>
         </div>
