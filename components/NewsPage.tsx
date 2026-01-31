@@ -50,6 +50,9 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
             cat = item._embedded['wp:term'][0][0].name;
           }
 
+          // Clean category name (&amp; -> Dan)
+          cat = cat.replace(/&amp;/gi, 'Dan').replace(/&/g, 'Dan');
+
           let authorName = "Admin";
           if (item._embedded && item._embedded['author'] && item._embedded['author'][0]) {
               authorName = item._embedded['author'][0].name;
@@ -132,7 +135,8 @@ const NewsPage: React.FC<NewsPageProps> = ({ isOpen, onClose }) => {
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Mengambil Berita...</p>
           </div>
         ) : (
-          <div className="space-y-6 pb-20">
+          /* Mengubah pb-20 menjadi pb-40 agar pagination naik di atas floating button */
+          <div className="space-y-6 pb-40">
             {pagedNews.map((item) => (
               <div 
                 key={item.id} 

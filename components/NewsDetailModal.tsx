@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ArrowLeft, Calendar, Share2, User } from 'lucide-react';
 
 export interface NewsDetailData {
@@ -20,6 +20,68 @@ interface NewsDetailModalProps {
 }
 
 const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news }) => {
+  // Ref untuk container konten agar bisa memanipulasi DOM di dalamnya
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Effect untuk menyembunyikan gambar yang error/broken ATAU placeholder
+  useEffect(() => {
+    if (isOpen && news && contentRef.current) {
+      const images = contentRef.current.querySelectorAll('img');
+      
+      // Placeholder spesifik yang menyebabkan blank space
+      const PLACEHOLDER_GIF = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+      const hideElement = (img: HTMLImageElement) => {
+        // Sembunyikan gambar
+        img.style.display = 'none';
+        
+        // Cek parent
+        const parent = img.parentElement;
+        if (parent) {
+           const parentTag = parent.tagName.toLowerCase();
+           
+           // Jika parent adalah figure, sembunyikan total
+           if (parentTag === 'figure') {
+             parent.style.display = 'none';
+           }
+           // Jika parent adalah P dan teksnya kosong (hanya berisi gambar tadi), sembunyikan
+           else if (parentTag === 'p' && parent.textContent?.trim() === '') {
+             parent.style.display = 'none';
+           }
+           // Jika parent adalah div wrapper gambar (biasa di WP)
+           else if (parent.classList.contains('wp-caption') || parentTag === 'div') {
+             // Cek jika div hanya berisi gambar ini
+             if (parent.textContent?.trim() === '') {
+                 parent.style.display = 'none';
+             }
+           }
+        }
+      };
+
+      const handleError = (e: Event) => hideElement(e.target as HTMLImageElement);
+
+      images.forEach(img => {
+        // Cek 1: Apakah src adalah placeholder base64?
+        if (img.src === PLACEHOLDER_GIF || img.src.includes("R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==")) {
+            hideElement(img);
+            return; // Stop processing this image
+        }
+
+        // Cek 2: Pasang listener untuk gambar error (broken link)
+        img.addEventListener('error', handleError);
+        
+        // Cek 3: Cek manual jika gambar sudah selesai load tapi width 0 atau sangat kecil (1px)
+        if (img.complete && (img.naturalWidth === 0 || (img.naturalWidth === 1 && img.naturalHeight === 1))) {
+           hideElement(img);
+        }
+      });
+
+      return () => {
+        images.forEach(img => img.removeEventListener('error', handleError));
+      };
+    }
+  }, [isOpen, news]);
+
   if (!isOpen || !news) return null;
 
   const handleShare = async () => {
@@ -38,6 +100,27 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
       navigator.clipboard.writeText(news.url);
       alert("Link berita disalin ke clipboard!");
     }
+  };
+
+  // Fungsi membersihkan konten dari paragraf kosong dan elemen mengganggu
+  const cleanContent = (html: string) => {
+    if (!html) return "";
+    
+    let cleaned = html;
+
+    // 1. Hapus tag IMG yang src-nya adalah placeholder secara spesifik via String replace (Backup layer)
+    cleaned = cleaned.replace(/<img[^>]*src=["']data:image\/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==["'][^>]*>/gi, "");
+
+    // 2. Hapus tag <p> yang kosong, hanya spasi, &nbsp;, atau <br>
+    cleaned = cleaned.replace(/<p[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>)*<\/p>/gi, "");
+
+    // 3. Hapus multiple <br> yang berurutan
+    cleaned = cleaned.replace(/(<br\s*\/?>\s*){2,}/gi, "<br/>");
+    
+    // 4. Hapus figure kosong (jika ada sisa dari backend)
+    cleaned = cleaned.replace(/<figure[^>]*>\s*<\/figure>/gi, "");
+
+    return cleaned;
   };
 
   return (
@@ -72,6 +155,10 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
                     src={news.imageUrl} 
                     alt={news.title} 
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      // Hide featured image if broken
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
             </div>
@@ -99,10 +186,21 @@ const NewsDetailModal: React.FC<NewsDetailModalProps> = ({ isOpen, onClose, news
             />
 
             {/* Content Body */}
-            {/* Menggunakan Tailwind arbitrary values dan CSS standar untuk styling konten HTML dari WP */}
             <div 
-                className="prose prose-sm max-w-none text-gray-700 leading-relaxed space-y-4 [&>p]:mb-4 [&>img]:rounded-xl [&>img]:w-full [&>img]:shadow-sm [&>ul]:list-disc [&>ul]:pl-5 [&>h2]:text-lg [&>h2]:font-bold [&>h2]:mt-6 [&>h2]:mb-2 [&>blockquote]:border-l-4 [&>blockquote]:border-teal-500 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:bg-gray-50 [&>blockquote]:p-2 [&>blockquote]:rounded-r-lg"
-                dangerouslySetInnerHTML={{ __html: news.content }}
+                ref={contentRef}
+                className="prose prose-sm max-w-none text-gray-700 leading-relaxed 
+                [&_p]:mb-3
+                [&_p:empty]:hidden
+                [&_a]:text-[#00a896] [&_a]:underline [&_a]:font-bold
+                [&_img]:rounded-xl [&_img]:w-full [&_img]:h-auto [&_img]:shadow-sm [&_img]:my-4 
+                [&_figure]:m-0 [&_figure]:w-full [&_figure]:my-4
+                [&_iframe]:w-full [&_iframe]:max-w-full [&_iframe]:rounded-xl [&_iframe]:shadow-sm [&_iframe]:my-4
+                [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4
+                [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4
+                [&_h2]:text-lg [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-gray-900
+                [&_h3]:text-base [&_h3]:font-bold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-gray-900
+                [&_blockquote]:border-l-4 [&_blockquote]:border-teal-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:bg-gray-50 [&_blockquote]:p-4 [&_blockquote]:rounded-r-lg [&_blockquote]:mb-4"
+                dangerouslySetInnerHTML={{ __html: cleanContent(news.content) }}
             />
             
             <div className="mt-10 pt-6 border-t border-gray-100 text-center">

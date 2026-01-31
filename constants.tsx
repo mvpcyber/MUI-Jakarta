@@ -27,14 +27,54 @@ import {
 export const PRIMARY_COLOR = '#00827f';
 
 export const QUICK_MENUS = [
-  { id: 'quran', label: 'Al-Quran', icon: <BookOpen className="text-teal-600" />, color: 'bg-teal-50' },
-  { id: 'hadits', label: 'Hadits', icon: <Library className="text-orange-600" />, color: 'bg-orange-50' },
-  { id: 'jadwal', label: 'Jadwal Shalat', icon: <Clock className="text-blue-500" />, color: 'bg-blue-50' },
-  { id: 'kiblat', label: 'Kiblat', icon: <Compass className="text-emerald-700" />, color: 'bg-emerald-50' },
-  { id: 'fatwa', label: 'Fatwa', icon: <ScrollText className="text-indigo-600" />, color: 'bg-indigo-50' },
-  { id: 'berita', label: 'Berita', icon: <Newspaper className="text-red-500" />, color: 'bg-red-50' },
-  { id: 'zakat', label: 'Zakat & Donasi', icon: <Calculator className="text-pink-500" />, color: 'bg-pink-50' },
-  { id: 'halal', label: 'Halal', icon: <ShieldCheck className="text-emerald-600" />, color: 'bg-emerald-50' },
+  { 
+    id: 'quran', 
+    label: 'Al-Quran', 
+    icon: <img src="https://m.muijakarta.or.id/img/quran.png" alt="Al-Quran" className="w-8 h-8 object-contain" />, 
+    color: 'bg-teal-50' 
+  },
+  { 
+    id: 'hadits', 
+    label: 'Hadis', 
+    icon: <img src="https://m.muijakarta.or.id/img/kitab.png" alt="Hadis" className="w-8 h-8 object-contain" />, 
+    color: 'bg-orange-50' 
+  },
+  { 
+    id: 'jadwal', 
+    label: 'Jadwal Shalat', 
+    icon: <img src="https://m.muijakarta.or.id/img/sholat.png" alt="Jadwal Shalat" className="w-8 h-8 object-contain" />, 
+    color: 'bg-blue-50' 
+  },
+  { 
+    id: 'kiblat', 
+    label: 'Kiblat', 
+    icon: <img src="https://m.muijakarta.or.id/img/kiblat.png" alt="Kiblat" className="w-8 h-8 object-contain" />, 
+    color: 'bg-emerald-50' 
+  },
+  { 
+    id: 'fatwa', 
+    label: 'Fatwa', 
+    icon: <img src="https://m.muijakarta.or.id/img/kitab2.png" alt="Fatwa" className="w-8 h-8 object-contain" />, 
+    color: 'bg-indigo-50' 
+  },
+  { 
+    id: 'berita', 
+    label: 'Berita', 
+    icon: <img src="https://m.muijakarta.or.id/img/new.png" alt="Berita" className="w-8 h-8 object-contain" />, 
+    color: 'bg-red-50' 
+  },
+  { 
+    id: 'zakat', 
+    label: 'Zakat & Donasi', 
+    icon: <img src="https://m.muijakarta.or.id/img/donasi.png" alt="Zakat & Donasi" className="w-8 h-8 object-contain" />, 
+    color: 'bg-pink-50' 
+  },
+  { 
+    id: 'halal', 
+    label: 'Halal', 
+    icon: <img src="https://m.muijakarta.or.id/img/halal.png" alt="Halal" className="w-8 h-8 object-contain" />, 
+    color: 'bg-emerald-50' 
+  },
 ];
 
 export const FULL_MENU_ITEMS = [

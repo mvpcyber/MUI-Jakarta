@@ -53,7 +53,7 @@ const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onNavigate }
             >
               <div className="flex items-center space-x-4">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${menu.color}`}>
-                  {React.cloneElement(menu.icon as React.ReactElement<any>, { size: 20 })}
+                  {menu.icon}
                 </div>
                 <span className="text-sm font-bold text-gray-700">{menu.label}</span>
               </div>

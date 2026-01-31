@@ -15,7 +15,10 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Quote,
+  Copy,
+  CheckCheck
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -86,6 +89,11 @@ const App: React.FC = () => {
   const [newsPage, setNewsPage] = useState(1);
   const [newsLoading, setNewsLoading] = useState(false);
 
+  // Hadis Random State
+  const [randomHadith, setRandomHadith] = useState<{content: string, narrator: string, number: number} | null>(null);
+  const [hadithLoading, setHadithLoading] = useState(true);
+  const [isCopied, setIsCopied] = useState(false);
+
   // Timer untuk jam digital
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -107,6 +115,9 @@ const App: React.FC = () => {
           if (item._embedded && item._embedded['wp:term'] && item._embedded['wp:term'][0] && item._embedded['wp:term'][0][0]) {
             cat = item._embedded['wp:term'][0][0].name;
           }
+          
+          // Clean category name (&amp; -> Dan)
+          cat = cat.replace(/&amp;/gi, 'Dan').replace(/&/g, 'Dan');
 
           let img = "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg";
           if (item._embedded && item._embedded['wp:featuredmedia'] && item._embedded['wp:featuredmedia'][0]) {
@@ -141,8 +152,48 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!showSplash) {
       fetchHomeNews(newsPage);
+      fetchRandomHadith();
     }
   }, [showSplash, newsPage, fetchHomeNews]);
+
+  // Fetch Random Hadith
+  const fetchRandomHadith = async () => {
+    setHadithLoading(true);
+    try {
+      // Random number 1 - 300 (Hadis populer biasanya di awal)
+      const randomNum = Math.floor(Math.random() * 300) + 1;
+      // Menggunakan API Gading Dev untuk Bukhari
+      const response = await fetch(`https://api.hadith.gading.dev/books/bukhari/${randomNum}`);
+      const result = await response.json();
+
+      if (result.data) {
+        setRandomHadith({
+          content: result.data.contents.id,
+          narrator: "HR. Bukhari",
+          number: result.data.contents.number
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch hadith", err);
+      // Fallback if API fails
+      setRandomHadith({
+        content: "Barangsiapa yang beriman kepada Allah dan Hari Akhir, maka hendaklah ia berkata baik atau diam.",
+        narrator: "HR. Bukhari & Muslim",
+        number: 0
+      });
+    } finally {
+      setHadithLoading(false);
+    }
+  };
+
+  const handleCopyHadith = () => {
+    if (randomHadith) {
+      const text = `"${randomHadith.content}"\n\n(${randomHadith.narrator} No. ${randomHadith.number})\n\nVia Aplikasi MUI Jakarta`;
+      navigator.clipboard.writeText(text);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
 
   // Fungsi mengambil jadwal sholat berdasarkan koordinat (Method 20 = Kemenag RI)
   const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, cityDisplayName: string) => {
@@ -349,27 +400,55 @@ const App: React.FC = () => {
               className="flex flex-col items-center group active:scale-95 transition-all duration-200"
             >
               <div className={`w-[62px] h-[62px] rounded-2xl flex items-center justify-center ${menu.color} shadow-sm border border-gray-100/30 mb-2 group-hover:shadow-md transition-shadow`}>
-                {React.cloneElement(menu.icon as React.ReactElement<any>, { size: 28 })}
+                {menu.icon}
               </div>
               <span className="text-[10px] font-bold text-gray-500 text-center leading-tight tracking-tight uppercase px-1">{menu.label}</span>
             </button>
           ))}
         </div>
 
-        {/* Fatwa Card (Sesuai Desain Baru) */}
-        <div className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-8 flex items-center relative overflow-hidden">
-           <div className="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center shrink-0 mr-5 border border-orange-100">
-              <FileText className="text-orange-600" size={32} />
+        {/* Hadis Random Card (Replaces Fatwa Card) */}
+        <div 
+          onClick={handleCopyHadith}
+          className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-8 flex items-start relative overflow-hidden cursor-pointer group hover:shadow-md transition-all active:scale-[0.98]"
+        >
+           {/* Decorative Background */}
+           <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-[100px] opacity-50 -mr-8 -mt-8 pointer-events-none"></div>
+
+           <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center shrink-0 mr-4 border border-orange-100 group-hover:scale-110 transition-transform">
+              <Quote className="text-orange-500" size={24} />
            </div>
-           <div>
-              <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">Fatwa Terbaru</h3>
-              <p className="text-xs text-gray-500 mb-3">Cek fatwa terbaru dari MUI Pusat</p>
-              <button 
-                onClick={() => setIsFatwaOpen(true)} 
-                className="bg-orange-500 text-white px-5 py-2.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg shadow-orange-200 active:scale-95 transition-transform"
-              >
-                Buka Fatwa
-              </button>
+           
+           <div className="flex-1 relative">
+              <div className="flex justify-between items-start">
+                 <div>
+                    <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">Hadis Hari Ini</h3>
+                    <p className="text-[10px] font-bold text-[#00a896] uppercase tracking-wider mb-2">
+                       {hadithLoading ? 'Memuat...' : randomHadith?.narrator}
+                    </p>
+                 </div>
+                 <div className={`p-1.5 rounded-lg transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                    {isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}
+                 </div>
+              </div>
+              
+              {hadithLoading ? (
+                 <div className="space-y-2 animate-pulse">
+                    <div className="h-2 bg-gray-100 rounded w-full"></div>
+                    <div className="h-2 bg-gray-100 rounded w-3/4"></div>
+                 </div>
+              ) : (
+                 <p className="text-xs text-gray-600 italic leading-relaxed line-clamp-3">
+                    "{randomHadith?.content}"
+                 </p>
+              )}
+              
+              <div className="mt-3 flex items-center">
+                 <span className="text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
+                    {hadithLoading ? '...' : `No. ${randomHadith?.number}`}
+                 </span>
+                 <span className="text-[9px] text-gray-400 ml-2">Ketuk untuk menyalin</span>
+              </div>
            </div>
         </div>
 
