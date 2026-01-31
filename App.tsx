@@ -19,7 +19,8 @@ import {
   Quote,
   Copy,
   CheckCheck,
-  Navigation
+  Navigation,
+  BellRing
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -112,6 +113,7 @@ const App: React.FC = () => {
 
   // Notification Logic State
   const sentNotificationsRef = useRef<Set<string>>(new Set());
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
 
   // News State
   const [homeNews, setHomeNews] = useState<NewsDetailData[]>([]);
@@ -127,6 +129,26 @@ const App: React.FC = () => {
 
   // Logic Notifikasi
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Check Notification Permission on Mount
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleRequestPermission = () => {
+    if (!('Notification' in window)) return;
+    Notification.requestPermission().then((permission) => {
+      setNotificationPermission(permission);
+      if (permission === 'granted') {
+         new Notification("Notifikasi Aktif", { 
+           body: "Jazakumullah Khairan, Anda akan menerima pengingat waktu sholat.",
+           icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png"
+         });
+      }
+    });
+  };
 
   const handleRemoveNotification = (id: number) => {
     setNotifications(prev => prev.filter(n => n.id !== id));
@@ -509,6 +531,27 @@ const App: React.FC = () => {
             </button>
           ))}
         </div>
+
+        {/* Permission Request Card */}
+        {notificationPermission === 'default' && (
+           <div className="bg-[#fff7ed] rounded-[32px] p-5 shadow-sm border border-orange-100 mb-6 flex items-start space-x-4 relative overflow-hidden">
+               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center shrink-0 text-orange-600">
+                   <BellRing size={24} />
+               </div>
+               <div className="flex-1">
+                   <h3 className="font-bold text-gray-900 text-sm mb-1">Aktifkan Pengingat Sholat</h3>
+                   <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                       Izinkan browser mengirim notifikasi agar Anda tidak ketinggalan waktu sholat.
+                   </p>
+                   <button 
+                       onClick={handleRequestPermission}
+                       className="bg-[#f97316] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200 active:scale-95 transition-transform"
+                   >
+                       Izinkan Notifikasi
+                   </button>
+               </div>
+           </div>
+        )}
 
         {/* Quote Hari Ini Card */}
         <div 
