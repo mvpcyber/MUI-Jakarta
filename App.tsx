@@ -45,6 +45,25 @@ export interface PrayerSchedule {
   lokasi: string;
 }
 
+// Koleksi Quote Islami Ringkas untuk Status Sosmed
+const ISLAMIC_QUOTES = [
+  { content: "Barangsiapa yang menempuh jalan untuk menuntut ilmu, Allah akan mudahkan baginya jalan menuju surga.", source: "HR. Muslim" },
+  { content: "Senyummu di hadapan saudaramu adalah sedekah.", source: "HR. Tirmidzi" },
+  { content: "Sebaik-baik manusia adalah yang paling bermanfaat bagi orang lain.", source: "HR. Ahmad" },
+  { content: "Malu itu sebagian dari iman.", source: "HR. Bukhari & Muslim" },
+  { content: "Dunia adalah perhiasan, dan sebaik-baik perhiasan dunia adalah wanita shalihah.", source: "HR. Muslim" },
+  { content: "Kebersihan adalah sebagian dari iman.", source: "HR. Muslim" },
+  { content: "Barangsiapa beriman kepada Allah dan hari akhir, hendaklah ia berkata baik atau diam.", source: "HR. Bukhari" },
+  { content: "Sesungguhnya Allah itu indah dan menyukai keindahan.", source: "HR. Muslim" },
+  { content: "Tidak akan masuk surga orang yang di dalam hatinya terdapat kesombongan sebiji sawi.", source: "HR. Muslim" },
+  { content: "Solat adalah tiang agama.", source: "HR. Tirmidzi" },
+  { content: "Tangan di atas lebih baik daripada tangan di bawah.", source: "HR. Bukhari" },
+  { content: "Sabar adalah separuh dari keimanan.", source: "Al-Hadits" },
+  { content: "Ridha Allah tergantung pada ridha orang tua, dan murka Allah tergantung pada murka orang tua.", source: "HR. Tirmidzi" },
+  { content: "Orang yang kuat bukanlah orang yang jago gulat, tetapi orang yang mampu menahan diri ketika marah.", source: "HR. Bukhari" },
+  { content: "Sedekah tidak akan mengurangi harta.", source: "HR. Muslim" }
+];
+
 const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#00827f] overflow-hidden islamic-bg">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
@@ -89,9 +108,8 @@ const App: React.FC = () => {
   const [newsPage, setNewsPage] = useState(1);
   const [newsLoading, setNewsLoading] = useState(false);
 
-  // Hadis Random State
-  const [randomHadith, setRandomHadith] = useState<{content: string, narrator: string, number: number} | null>(null);
-  const [hadithLoading, setHadithLoading] = useState(true);
+  // Quote State
+  const [dailyQuote, setDailyQuote] = useState<{content: string, source: string} | null>(null);
   const [isCopied, setIsCopied] = useState(false);
 
   // Timer untuk jam digital
@@ -152,43 +170,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!showSplash) {
       fetchHomeNews(newsPage);
-      fetchRandomHadith();
+      generateDailyQuote();
     }
   }, [showSplash, newsPage, fetchHomeNews]);
 
-  // Fetch Random Hadith
-  const fetchRandomHadith = async () => {
-    setHadithLoading(true);
-    try {
-      // Random number 1 - 300 (Hadis populer biasanya di awal)
-      const randomNum = Math.floor(Math.random() * 300) + 1;
-      // Menggunakan API Gading Dev untuk Bukhari
-      const response = await fetch(`https://api.hadith.gading.dev/books/bukhari/${randomNum}`);
-      const result = await response.json();
-
-      if (result.data) {
-        setRandomHadith({
-          content: result.data.contents.id,
-          narrator: "HR. Bukhari",
-          number: result.data.contents.number
-        });
-      }
-    } catch (err) {
-      console.error("Failed to fetch hadith", err);
-      // Fallback if API fails
-      setRandomHadith({
-        content: "Barangsiapa yang beriman kepada Allah dan Hari Akhir, maka hendaklah ia berkata baik atau diam.",
-        narrator: "HR. Bukhari & Muslim",
-        number: 0
-      });
-    } finally {
-      setHadithLoading(false);
-    }
+  // Generate Random Quote
+  const generateDailyQuote = () => {
+    const randomIndex = Math.floor(Math.random() * ISLAMIC_QUOTES.length);
+    setDailyQuote(ISLAMIC_QUOTES[randomIndex]);
   };
 
-  const handleCopyHadith = () => {
-    if (randomHadith) {
-      const text = `"${randomHadith.content}"\n\n(${randomHadith.narrator} No. ${randomHadith.number})\n\nVia Aplikasi MUI Jakarta`;
+  const handleCopyQuote = () => {
+    if (dailyQuote) {
+      const text = `"${dailyQuote.content}"\n\n(${dailyQuote.source})\n\nVia Aplikasi MUI Jakarta`;
       navigator.clipboard.writeText(text);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -407,48 +401,41 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Hadis Random Card (Replaces Fatwa Card) */}
+        {/* Quote Hari Ini Card (Replaces Hadis Hari Ini) */}
         <div 
-          onClick={handleCopyHadith}
-          className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-8 flex items-start relative overflow-hidden cursor-pointer group hover:shadow-md transition-all active:scale-[0.98]"
+          onClick={handleCopyQuote}
+          className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-8 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl hover:shadow-teal-900/10 transition-all active:scale-[0.98]"
         >
            {/* Decorative Background */}
-           <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-bl-[100px] opacity-50 -mr-8 -mt-8 pointer-events-none"></div>
+           <div className="absolute top-0 left-0 w-20 h-20 bg-teal-50 rounded-br-[80px] opacity-60 -ml-6 -mt-6 pointer-events-none"></div>
+           <div className="absolute bottom-0 right-0 w-24 h-24 bg-orange-50 rounded-tl-[100px] opacity-60 -mr-8 -mb-8 pointer-events-none"></div>
 
-           <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center shrink-0 mr-4 border border-orange-100 group-hover:scale-110 transition-transform">
-              <Quote className="text-orange-500" size={24} />
+           <div className="w-full flex justify-between items-center mb-4 relative z-10">
+              <div className="flex items-center space-x-2">
+                 <div className="h-6 w-1 bg-orange-500 rounded-full"></div>
+                 <div>
+                    <h3 className="font-bold text-gray-800 text-lg leading-none">Quote Hari Ini</h3>
+                 </div>
+              </div>
+              <div className={`p-2 rounded-full transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
+                 {isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}
+              </div>
            </div>
            
-           <div className="flex-1 relative">
-              <div className="flex justify-between items-start">
-                 <div>
-                    <h3 className="font-bold text-gray-800 text-lg leading-tight mb-1">Hadis Hari Ini</h3>
-                    <p className="text-[10px] font-bold text-[#00a896] uppercase tracking-wider mb-2">
-                       {hadithLoading ? 'Memuat...' : randomHadith?.narrator}
-                    </p>
-                 </div>
-                 <div className={`p-1.5 rounded-lg transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
-                    {isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}
-                 </div>
-              </div>
+           <div className="relative z-10 w-full text-center py-2 px-2">
+              <p className="text-base text-gray-700 font-medium italic leading-relaxed">
+                 "{dailyQuote?.content}"
+              </p>
               
-              {hadithLoading ? (
-                 <div className="space-y-2 animate-pulse">
-                    <div className="h-2 bg-gray-100 rounded w-full"></div>
-                    <div className="h-2 bg-gray-100 rounded w-3/4"></div>
-                 </div>
-              ) : (
-                 <p className="text-xs text-gray-600 italic leading-relaxed line-clamp-3">
-                    "{randomHadith?.content}"
-                 </p>
-              )}
-              
-              <div className="mt-3 flex items-center">
-                 <span className="text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
-                    {hadithLoading ? '...' : `No. ${randomHadith?.number}`}
+              <div className="mt-4 inline-block">
+                 <span className="text-[10px] font-black text-[#00a896] uppercase tracking-widest bg-teal-50 px-3 py-1.5 rounded-full border border-teal-100">
+                    {dailyQuote?.source}
                  </span>
-                 <span className="text-[9px] text-gray-400 ml-2">Ketuk untuk menyalin</span>
               </div>
+           </div>
+           
+           <div className="mt-4 text-[9px] text-gray-300 font-bold uppercase tracking-widest relative z-10">
+              Ketuk untuk menyalin
            </div>
         </div>
 
