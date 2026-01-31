@@ -18,7 +18,8 @@ import {
   RefreshCw,
   Quote,
   Copy,
-  CheckCheck
+  CheckCheck,
+  Navigation
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -29,8 +30,9 @@ import KiblatPage from './components/KiblatPage';
 import HalalPage from './components/HalalPage';
 import FatwaPage from './components/FatwaPage';
 import NewsPage from './components/NewsPage';
+import MosquePage from './components/MosquePage';
 import SearchModal from './components/SearchModal';
-import NotificationModal from './components/NotificationModal';
+import NotificationModal, { NotificationItem } from './components/NotificationModal';
 import InfoModal from './components/InfoModal';
 import NewsDetailModal, { NewsDetailData } from './components/NewsDetailModal';
 
@@ -64,6 +66,34 @@ const ISLAMIC_QUOTES = [
   { content: "Sedekah tidak akan mengurangi harta.", source: "HR. Muslim" }
 ];
 
+// Data Awal Notifikasi
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [
+  {
+    id: 1,
+    type: 'prayer',
+    title: 'Waktu Maghrib Tiba',
+    desc: 'Saatnya menunaikan sholat Maghrib untuk wilayah Jakarta Pusat dan sekitarnya.',
+    time: 'Baru saja',
+    read: false
+  },
+  {
+    id: 2,
+    type: 'news',
+    title: 'Fatwa Terbaru MUI',
+    desc: 'MUI keluarkan fatwa baru terkait dukungan perjuangan Palestina. Simak selengkapnya.',
+    time: '2 jam lalu',
+    read: false
+  },
+  {
+    id: 3,
+    type: 'prayer',
+    title: 'Waktu Ashar Tiba',
+    desc: 'Saatnya menunaikan sholat Ashar.',
+    time: '4 jam lalu',
+    read: true
+  }
+];
+
 const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#00827f] overflow-hidden islamic-bg">
     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
@@ -94,6 +124,7 @@ const App: React.FC = () => {
   const [isHalalOpen, setIsHalalOpen] = useState(false);
   const [isFatwaOpen, setIsFatwaOpen] = useState(false);
   const [isNewsOpen, setIsNewsOpen] = useState(false);
+  const [isMosqueOpen, setIsMosqueOpen] = useState(false);
   
   // News Detail State
   const [isNewsDetailOpen, setIsNewsDetailOpen] = useState(false);
@@ -111,6 +142,20 @@ const App: React.FC = () => {
   // Quote State
   const [dailyQuote, setDailyQuote] = useState<{content: string, source: string} | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+
+  // Notification State
+  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+
+  // Logic Notifikasi
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const handleRemoveNotification = (id: number) => {
+    setNotifications(prev => prev.filter(n => n.id !== id));
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications(prev => prev.map(n => ({...n, read: true})));
+  };
 
   // Timer untuk jam digital
   useEffect(() => {
@@ -345,7 +390,9 @@ const App: React.FC = () => {
             className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform"
           >
             <Bell size={22} />
-            <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>
+            {unreadCount > 0 && (
+               <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>
+            )}
           </button>
         </div>
 
@@ -401,10 +448,10 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Quote Hari Ini Card (Replaces Hadis Hari Ini) */}
+        {/* Quote Hari Ini Card */}
         <div 
           onClick={handleCopyQuote}
-          className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-8 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl hover:shadow-teal-900/10 transition-all active:scale-[0.98]"
+          className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-4 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl hover:shadow-teal-900/10 transition-all active:scale-[0.98]"
         >
            {/* Decorative Background */}
            <div className="absolute top-0 left-0 w-20 h-20 bg-teal-50 rounded-br-[80px] opacity-60 -ml-6 -mt-6 pointer-events-none"></div>
@@ -433,10 +480,29 @@ const App: React.FC = () => {
                  </span>
               </div>
            </div>
-           
-           <div className="mt-4 text-[9px] text-gray-300 font-bold uppercase tracking-widest relative z-10">
-              Ketuk untuk menyalin
-           </div>
+        </div>
+
+        {/* Card Masjid Terdekat */}
+        <div 
+          onClick={() => setIsMosqueOpen(true)}
+          className="bg-gradient-to-r from-[#00a896] to-teal-700 rounded-[32px] p-5 shadow-lg shadow-teal-900/10 mb-8 flex items-center justify-between relative overflow-hidden cursor-pointer group hover:shadow-xl hover:shadow-teal-900/20 transition-all active:scale-[0.98]"
+        >
+          {/* Pattern Overlay */}
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
+          
+          <div className="relative z-10 flex items-center space-x-4">
+            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
+               <img src="https://m.muijakarta.or.id/img/masjid.png" alt="Masjid" className="w-9 h-9 object-contain drop-shadow-md" />
+            </div>
+            <div>
+               <h3 className="font-bold text-white text-lg leading-tight">Masjid Terdekat</h3>
+               <p className="text-[10px] text-teal-100 font-medium mt-1">Temukan tempat ibadah di sekitar Anda</p>
+            </div>
+          </div>
+          
+          <div className="w-10 h-10 bg-white text-[#00a896] rounded-full flex items-center justify-center shadow-md relative z-10 group-hover:scale-110 transition-transform">
+             <Navigation size={20} fill="currentColor" />
+          </div>
         </div>
 
         {/* Info Terkini / News Section */}
@@ -516,6 +582,7 @@ const App: React.FC = () => {
                 // Beranda logic: Close all modals to reveal main content
                 setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
+                setIsMosqueOpen(false);
              }}
              className="w-16 h-16 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            >
@@ -542,6 +609,7 @@ const App: React.FC = () => {
       {/* New Pages */}
       <FatwaPage isOpen={isFatwaOpen} onClose={() => setIsFatwaOpen(false)} />
       <NewsPage isOpen={isNewsOpen} onClose={() => setIsNewsOpen(false)} />
+      <MosquePage isOpen={isMosqueOpen} onClose={() => setIsMosqueOpen(false)} />
       
       <NewsDetailModal 
         isOpen={isNewsDetailOpen} 
@@ -551,7 +619,13 @@ const App: React.FC = () => {
       
       {/* Utility Modals */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />
-      <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} />
+      <NotificationModal 
+        isOpen={isNotifOpen} 
+        onClose={() => setIsNotifOpen(false)} 
+        notifications={notifications}
+        onRemove={handleRemoveNotification}
+        onMarkAllRead={handleMarkAllRead}
+      />
       <InfoModal 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)} 
