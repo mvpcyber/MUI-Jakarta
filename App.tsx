@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   MapPin, 
@@ -66,33 +67,8 @@ const ISLAMIC_QUOTES = [
   { content: "Sedekah tidak akan mengurangi harta.", source: "HR. Muslim" }
 ];
 
-// Data Awal Notifikasi
-const INITIAL_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: 1,
-    type: 'prayer',
-    title: 'Waktu Maghrib Tiba',
-    desc: 'Saatnya menunaikan sholat Maghrib untuk wilayah Jakarta Pusat dan sekitarnya.',
-    time: 'Baru saja',
-    read: false
-  },
-  {
-    id: 2,
-    type: 'news',
-    title: 'Fatwa Terbaru MUI',
-    desc: 'MUI keluarkan fatwa baru terkait dukungan perjuangan Palestina. Simak selengkapnya.',
-    time: '2 jam lalu',
-    read: false
-  },
-  {
-    id: 3,
-    type: 'prayer',
-    title: 'Waktu Ashar Tiba',
-    desc: 'Saatnya menunaikan sholat Ashar.',
-    time: '4 jam lalu',
-    read: true
-  }
-];
+// Data Awal Notifikasi (Kosongkan Dummy)
+const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 
 const SplashScreen: React.FC = () => (
   <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#00827f] overflow-hidden islamic-bg">
