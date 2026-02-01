@@ -286,42 +286,50 @@ const App: React.FC = () => {
 
   // --- FIREBASE SYNC (USER RECEIVER) ---
   useEffect(() => {
-    // 1. Load Local State First (Read/Deleted status)
+    // 1. Load Local State First (Read/Deleted status from previous session)
     const localStored = localStorage.getItem('mui_notifications_local');
     if (localStored) {
       try {
         const localData = JSON.parse(localStored);
-        if (localData.length > 0) {
+        if (Array.isArray(localData) && localData.length > 0) {
            setNotifications(localData);
         }
       } catch (e) {}
     }
 
-    if (!db) return; // Jika firebase belum dikonfigurasi
+    if (!db) {
+      console.log("Database not configured, skipping realtime listener.");
+      return; 
+    }
 
     // 2. Listen to Firebase Realtime Database
-    // Ambil 5 notifikasi terakhir dari server
-    const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(5));
+    // Menggunakan limitToLast(10) agar jika data di client kosong, user langsung dapat history terbaru
+    const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(10));
     
+    console.log("Connecting to Firebase notifications...");
+
     const unsubscribe = onChildAdded(notifRef, (snapshot: DataSnapshot) => {
        const data = snapshot.val();
        if (data && data.id) {
           
           setNotifications(prev => {
-             // Cek duplikat
+             // Cek duplikat agar tidak double
              const exists = prev.some(n => n.id === data.id);
              if (exists) return prev;
              
              // LOGIKA NOTIFIKASI STATUS BAR:
-             const notifTime = new Date(data.id).getTime();
+             // Hanya munculkan notifikasi popup jika pesan relatif baru (kurang dari 12 jam)
+             // Agar saat buka app pertama kali tidak spam notifikasi lama
+             const notifTime = typeof data.id === 'number' ? data.id : parseInt(data.id);
              const now = Date.now();
-             const isRecent = (now - notifTime) < (60 * 60 * 1000); // 1 jam
+             const isRecent = (now - notifTime) < (12 * 60 * 60 * 1000); 
 
-             // Trigger Status Bar Notification hanya jika pesan baru/segar
-             if (isRecent) {
+             // Trigger Status Bar Notification hanya jika pesan baru/segar dan bukan load initial history yang lama
+             // Kita gunakan appLaunchTimeRef untuk membedakan pesan yang masuk saat app berjalan vs history
+             if (isRecent && notifTime > appLaunchTimeRef.current) {
                  setTimeout(() => {
                     sendNotification(data.title, data.desc, true);
-                 }, 500);
+                 }, 1000);
              }
 
              const newNotifItem: NotificationItem = {
@@ -329,11 +337,12 @@ const App: React.FC = () => {
                 type: 'news',
                 title: data.title,
                 desc: data.desc,
-                time: data.time,
-                read: false
+                time: data.time || new Date(data.id).toLocaleTimeString('id-ID'),
+                read: false // Default unread untuk pesan baru dari server
              };
              
-             const updated = [newNotifItem, ...prev].slice(0, 20); // Batasi 20 items lokal
+             // Gabungkan dan urutkan (Terbaru di atas)
+             const updated = [newNotifItem, ...prev].sort((a,b) => b.id - a.id).slice(0, 50); 
              
              localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
              return updated;

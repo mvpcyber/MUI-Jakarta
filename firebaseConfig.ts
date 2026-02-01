@@ -10,31 +10,44 @@ export interface FirebaseConfigType {
   storageBucket: string;
   messagingSenderId: string;
   appId: string;
+  measurementId?: string;
 }
 
 const LOCAL_STORAGE_KEY = 'mui_firebase_config';
 
-// Default config (placeholders)
+// --- KONFIGURASI FIREBASE ---
+// 1. Buka https://console.firebase.google.com/
+// 2. Buat Project / Buka Project yang ada
+// 3. Masuk ke Project Settings > General > Your apps > Web App
+// 4. Salin config "firebaseConfig" dan tempel di bawah ini menggantikan nilai default.
+// 5. Pastikan Realtime Database Rules diatur ke ".read": true, ".write": true (atau sesuai kebutuhan keamanan)
+
 const defaultConfig: FirebaseConfigType = {
-  apiKey: "ISI_DENGAN_API_KEY_DARI_FIREBASE",
-  authDomain: "project-id.firebaseapp.com",
-  databaseURL: "https://project-id-default-rtdb.firebaseio.com",
-  projectId: "project-id",
-  storageBucket: "project-id.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef"
+  apiKey: "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c",
+  authDomain: "mui-jakarta.firebaseapp.com",
+  databaseURL: "https://mui-jakarta-default-rtdb.asia-southeast1.firebasedatabase.app", // Updated based on screenshot
+  projectId: "mui-jakarta",
+  storageBucket: "mui-jakarta.firebasestorage.app",
+  messagingSenderId: "1032854256041",
+  appId: "1:1032854256041:web:c460e9057947c22c15acb8"
 };
 
 // Function to get config
 export const getFirebaseConfig = (): FirebaseConfigType => {
+  // Prioritas 1: Ambil dari Local Storage (jika di-set lewat Admin Panel)
   const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (stored) {
     try {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Validasi sederhana
+      if (parsed.apiKey && parsed.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c") {
+        return parsed;
+      }
     } catch (e) {
       console.error("Error parsing stored config", e);
     }
   }
+  // Prioritas 2: Gunakan Config Hardcoded di atas
   return defaultConfig;
 };
 
@@ -49,7 +62,11 @@ export const resetFirebaseConfig = () => {
 };
 
 const currentConfig = getFirebaseConfig();
-const isConfigured = currentConfig.apiKey !== "ISI_DENGAN_API_KEY_DARI_FIREBASE";
+
+// Cek apakah config sudah diisi (bukan placeholder default)
+// Kita anggap configured jika apiKey tidak sama dengan placeholder default
+const isConfigured = currentConfig.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c" && 
+                     currentConfig.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c";
 
 let app;
 let db: any;
@@ -63,11 +80,12 @@ if (isConfigured) {
       app = getApp();
     }
     db = getDatabase(app);
+    console.log("Firebase Database Initialized:", currentConfig.databaseURL);
   } catch (error) {
     console.error("Firebase Initialization Error:", error);
   }
 } else {
-  // console.warn("Firebase not configured");
+  console.warn("Firebase belum dikonfigurasi. Silakan isi firebaseConfig.ts atau gunakan Admin Panel.");
 }
 
 export { db, isConfigured };
