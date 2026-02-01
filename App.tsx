@@ -42,7 +42,7 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 // FIREBASE IMPORTS
-import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set, update } from 'firebase/database';
+import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set, update, onValue } from 'firebase/database';
 import { db } from './firebaseConfig';
 
 // --- Global Constant Declaration ---
@@ -60,16 +60,11 @@ export interface PrayerSchedule {
   lokasi: string;
 }
 
-// Koleksi Quote Islami Ringkas
 const ISLAMIC_QUOTES = [
   { content: "Barangsiapa yang menempuh jalan untuk menuntut ilmu, Allah akan mudahkan baginya jalan menuju surga.", source: "HR. Muslim" },
   { content: "Senyummu di hadapan saudaramu adalah sedekah.", source: "HR. Tirmidzi" },
   { content: "Sebaik-baik manusia adalah yang paling bermanfaat bagi orang lain.", source: "HR. Ahmad" },
   { content: "Malu itu sebagian dari iman.", source: "HR. Bukhari & Muslim" },
-  { content: "Dunia adalah perhiasan, dan sebaik-baik perhiasan dunia adalah wanita shalihah.", source: "HR. Muslim" },
-  { content: "Kebersihan adalah sebagian dari iman.", source: "HR. Muslim" },
-  { content: "Solat adalah tiang agama.", source: "HR. Tirmidzi" },
-  { content: "Sabar adalah separuh dari keimanan.", source: "Al-Hadits" },
 ];
 
 const SplashScreen: React.FC = () => (
@@ -89,18 +84,15 @@ const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
   
-  // --- Admin Mode Logic ---
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
 
-  // Modals States
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   
-  // PWA & Page States
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
@@ -140,322 +132,168 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkVersion = async () => {
       const storedVersion = localStorage.getItem('mui_app_version');
-      
-      // Jika versi berbeda dengan yang sedang berjalan (Update Baru)
       if (storedVersion && storedVersion !== appVersion) {
-        console.log(`[App] New version detected: ${storedVersion} -> ${appVersion}. Updating...`);
-        
-        // 1. Clear Browser Caches
         if ('caches' in window) {
           try {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
-            console.log('[App] Caches cleared.');
-          } catch (e) { console.error("Cache clear error", e); }
+          } catch (e) {}
         }
-
-        // 2. Unregister Service Workers
         if ('serviceWorker' in navigator) {
           try {
             const registrations = await navigator.serviceWorker.getRegistrations();
-            for (const registration of registrations) {
-              await registration.unregister();
-            }
-            console.log('[App] SW unregistered.');
-          } catch (e) { console.error("SW unregister error", e); }
+            for (const registration of registrations) { await registration.unregister(); }
+          } catch (e) {}
         }
-
-        // 3. Update Stored Version
         localStorage.setItem('mui_app_version', appVersion);
-
-        // 4. Force Reload
         window.location.reload();
       } else if (!storedVersion) {
-        // First install or local storage cleared
         localStorage.setItem('mui_app_version', appVersion);
       }
     };
-
     checkVersion();
   }, [appVersion]);
 
-  // --- Check Admin Mode on Mount ---
+  // --- ADMIN MODE CHECK ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'admin') {
       setIsAdminMode(true);
-      const session = localStorage.getItem('mui_admin_session');
-      if (session === 'true') {
+      if (localStorage.getItem('mui_admin_session') === 'true') {
         setIsAdminAuthenticated(true);
       }
     }
   }, []);
 
-  const handleAdminLogin = () => {
-    setIsAdminAuthenticated(true);
-  };
-
+  const handleAdminLogin = () => setIsAdminAuthenticated(true);
   const handleAdminLogout = () => {
     localStorage.removeItem('mui_admin_session');
     setIsAdminAuthenticated(false);
     window.location.href = window.location.pathname;
   };
 
-  // --- AUTOMATIC TRACKING (ANALYTICS & LIVE LOCATION) ---
+  // --- SILENT REGISTRATION & TRACKING ---
   useEffect(() => {
     if (!isAdminMode && db && !showSplash) {
        const logActivity = async () => {
           const storedUid = localStorage.getItem('mui_user_id');
           const timestamp = new Date().toISOString();
-          
           const payload: any = {
              lastActive: timestamp,
              platform: navigator.platform || 'Unknown',
              userAgent: navigator.userAgent,
              location: locationName
           };
-
-          // Tambahkan koordinat live jika tersedia
           if (userCoords) {
              payload.latitude = userCoords.lat;
              payload.longitude = userCoords.lng;
           }
-
           try {
              if (storedUid) {
-                // Update user yang sudah ada
-                const userRef = ref(db, `users/${storedUid}`);
-                await update(userRef, payload);
+                await update(ref(db, `users/${storedUid}`), payload);
              } else {
-                // Register user baru (Guest) secara otomatis
-                const usersRef = ref(db, 'users');
-                const newUserRef = push(usersRef);
+                const newUserRef = push(ref(db, 'users'));
                 const uid = newUserRef.key;
-                
                 if (uid) {
-                   await set(newUserRef, {
-                      ...payload,
-                      id: uid,
-                      joinedAt: timestamp,
-                      name: "Guest User",
-                      phoneNumber: "-"
-                   });
+                   await set(newUserRef, { ...payload, id: uid, joinedAt: timestamp, name: "Guest User", phoneNumber: "-" });
                    localStorage.setItem('mui_user_id', uid);
                 }
              }
-          } catch (e) {
-             console.error("Tracking Error:", e);
-          }
+          } catch (e) {}
        };
-
        logActivity();
     }
-  }, [isAdminMode, showSplash, locationName, userCoords]); // Trigger update saat lokasi/koordinat berubah
+  }, [isAdminMode, showSplash, locationName, userCoords]);
 
-
-  // --- Logic PWA Install ---
+  // --- PWA LOGIC ---
   useEffect(() => {
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(userAgent);
+    const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
     setIsIOS(ios);
-
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
+    const handleBeforeInstallPrompt = (e: any) => { e.preventDefault(); setDeferredPrompt(e); };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
-
-    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash) {
-       const timer = setTimeout(() => {
-          setIsInstallModalOpen(true);
-       }, 5000);
+    if (!isStandalone && !sessionStorage.getItem('pwa_install_dismissed') && !isAdminMode && !showSplash) {
+       const timer = setTimeout(() => setIsInstallModalOpen(true), 5000);
        return () => clearTimeout(timer);
     }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, [isAdminMode, showSplash]);
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-        setIsInstallModalOpen(false);
-      }
-    } else if (isIOS) {
-       setIsInstallModalOpen(true);
-    } else {
-       alert("Untuk menginstall: Tap menu browser (titik tiga) lalu pilih 'Install App' atau 'Tambahkan ke Layar Utama'");
-    }
-  };
-  
-  const handleCloseInstallModal = () => {
-    setIsInstallModalOpen(false);
-    sessionStorage.setItem('pwa_install_dismissed', 'true');
+      if (outcome === 'accepted') { setDeferredPrompt(null); setIsInstallModalOpen(false); }
+    } else if (isIOS) setIsInstallModalOpen(true);
+    else alert("Gunakan menu browser untuk Install.");
   };
 
-  // --- FORCE MANDATORY PERMISSIONS ---
-  const checkInitialPermissions = async () => {
-    // Cek Notifikasi
-    const notifNeeded = 'Notification' in window && Notification.permission !== 'granted';
+  // --- BROADCAST RECEIVER & RECEIPT SYSTEM ---
+  useEffect(() => {
+    if (!db || isAdminMode) return;
     
-    // Cek Geo (Simple check)
-    let geoNeeded = true;
-    if (navigator.permissions && navigator.permissions.query) {
-        try {
-            const geo = await navigator.permissions.query({ name: 'geolocation' });
-            if (geo.state === 'granted') geoNeeded = false;
-        } catch(e) {}
-    }
+    const userId = localStorage.getItem('mui_user_id');
+    const broadcastsRef = ref(db, 'notifications');
+    
+    // Gunakan onChildAdded untuk memantau notifikasi baru secara real-time
+    const unsubscribe = onChildAdded(query(broadcastsRef, limitToLast(1)), (snapshot) => {
+      const data = snapshot.val();
+      const firebaseKey = snapshot.key;
+      
+      if (data && firebaseKey && userId) {
+        // Hanya proses jika notifikasi lebih baru dari saat aplikasi dibuka
+        if (data.id > appLaunchTimeRef.current) {
+          // 1. KIRIM RECEIPT KE ADMIN (SINYAL TERIMA)
+          update(ref(db, `notifications/${firebaseKey}/receipts`), {
+            [userId]: new Date().toISOString()
+          });
 
-    // Jika salah satu belum granted, tampilkan modal WAJIB (Kecuali admin)
-    if ((notifNeeded || geoNeeded) && !isAdminMode && !isInstallModalOpen) {
-      setIsPermissionModalOpen(true);
-    }
-  };
+          // 2. TAMPILKAN NOTIFIKASI
+          sendNotification(data.title, data.desc, true);
+          
+          // 3. UPDATE UI LOKAL
+          const newNotifItem: NotificationItem = {
+            id: data.id,
+            type: 'news',
+            title: data.title,
+            desc: data.desc,
+            time: data.time || new Date().toLocaleTimeString('id-ID'),
+            read: false 
+          };
+          setNotifications(prev => {
+            const updated = [newNotifItem, ...prev].sort((a,b) => b.id - a.id).slice(0, 50);
+            localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }
+    });
 
-  useEffect(() => {
-    if (!showSplash && !isAdminMode && !isInstallModalOpen) {
-      const timer = setTimeout(() => {
-         checkInitialPermissions();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSplash, isAdminMode, isInstallModalOpen]);
+    return () => unsubscribe();
+  }, [isAdminMode]);
 
-  useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
-    }
-  }, [isPermissionModalOpen]); 
-
-  const handleRequestPermission = () => {
-    setIsPermissionModalOpen(true);
-  };
-
-  const handleRemoveNotification = (id: number) => {
-    const updated = notifications.filter(n => n.id !== id);
-    setNotifications(updated);
-    localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
-  };
-
-  const handleMarkAllRead = () => {
-    const updated = notifications.map(n => ({...n, read: true}));
-    setNotifications(updated);
-    localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
-  };
-
-  // --- Logic Push Notification Browser & In-App ---
+  // --- NOTIFICATION & PRAYER LOGIC ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
     try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.log('Audio autoplay blocked by browser policy:', error);
-        });
-      }
-    } catch (e) {
-      console.warn("Audio play failed", e);
-    }
+      new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => {});
+    } catch (e) {}
 
     if ("Notification" in window && Notification.permission === "granted") {
       const options = {
         body: body,
         icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-        badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
         vibrate: [200, 100, 200],
-        tag: isFromAdmin ? `admin-${Date.now()}` : title,
-        data: { url: window.location.href },
-        renotify: true, 
         requireInteraction: true
       };
-
-      if ('serviceWorker' in navigator) {
-         navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(title, options);
-         }).catch(err => {
-            new Notification(title, options as any);
-         });
-      } else {
-         new Notification(title, options as any);
-      }
+      new Notification(title, options as any);
     }
   }, []);
 
-  // --- FIREBASE SYNC (USER RECEIVER) ---
-  useEffect(() => {
-    const localStored = localStorage.getItem('mui_notifications_local');
-    if (localStored) {
-      try {
-        const localData = JSON.parse(localStored);
-        if (Array.isArray(localData) && localData.length > 0) {
-           setNotifications(localData);
-        }
-      } catch (e) {}
-    }
-
-    if (!db) {
-      console.log("Database not configured, skipping realtime listener.");
-      return; 
-    }
-
-    const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(10));
-    const unsubscribe = onChildAdded(notifRef, (snapshot: DataSnapshot) => {
-       const data = snapshot.val();
-       if (data && data.id) {
-          setNotifications(prev => {
-             const exists = prev.some(n => n.id === data.id);
-             if (exists) return prev;
-             
-             const notifTime = typeof data.id === 'number' ? data.id : parseInt(data.id);
-             const now = Date.now();
-             const isRecent = (now - notifTime) < (12 * 60 * 60 * 1000); 
-
-             if (isRecent && notifTime > appLaunchTimeRef.current) {
-                 setTimeout(() => {
-                    sendNotification(data.title, data.desc, true);
-                 }, 1000);
-             }
-
-             const newNotifItem: NotificationItem = {
-                id: data.id,
-                type: 'news',
-                title: data.title,
-                desc: data.desc,
-                time: data.time || new Date(data.id).toLocaleTimeString('id-ID'),
-                read: false 
-             };
-             
-             const updated = [newNotifItem, ...prev].sort((a,b) => b.id - a.id).slice(0, 50); 
-             localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
-             return updated;
-          });
-       }
-    });
-
-    return () => unsubscribe();
-  }, [sendNotification]);
-
-  // Logika Pengecekan Waktu Sholat (Lokal)
   const checkPrayerNotifications = useCallback(() => {
     if (!prayerSchedule) return;
-
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
-    
-    if (currentHour === 0 && currentMinute === 0) {
-      sentNotificationsRef.current.clear();
-    }
-
     const prayerTimesList = [
       { name: 'Subuh', time: prayerSchedule.subuh },
       { name: 'Dzuhur', time: prayerSchedule.dzuhur },
@@ -463,108 +301,46 @@ const App: React.FC = () => {
       { name: 'Maghrib', time: prayerSchedule.maghrib },
       { name: 'Isya', time: prayerSchedule.isya }
     ];
-
     prayerTimesList.forEach(prayer => {
       const [pHour, pMinute] = prayer.time.split(':').map(Number);
-      const prayerDate = new Date();
-      prayerDate.setHours(pHour, pMinute, 0, 0);
-      
-      const diffMs = prayerDate.getTime() - now.getTime();
-      const diffMinutes = Math.floor(diffMs / 60000); 
-      const dateKey = now.getDate(); 
-
-      if (diffMinutes === 10) {
-         const key = `${prayer.name}-10min-${dateKey}`;
-         if (!sentNotificationsRef.current.has(key)) {
-            sendNotification(
-              `Menuju ${prayer.name}`, 
-              `10 Menit lagi menuju waktu sholat ${prayer.name} untuk wilayah ${locationName}.`
-            );
-            sentNotificationsRef.current.add(key);
-            
-             const newNotif: NotificationItem = {
-              id: Date.now(),
-              type: 'prayer',
-              title: `Menuju ${prayer.name}`,
-              desc: `10 Menit lagi menuju waktu sholat ${prayer.name}.`,
-              time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              read: false
-            };
-            setNotifications(prev => {
-               const updated = [newNotif, ...prev];
-               localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
-               return updated;
-            });
-         }
-      }
-
       if (currentHour === pHour && currentMinute === pMinute) {
-         const key = `${prayer.name}-now-${dateKey}`;
+         const key = `${prayer.name}-now-${now.getDate()}`;
          if (!sentNotificationsRef.current.has(key)) {
-            sendNotification(
-              `Waktu ${prayer.name} Tiba`, 
-              `Telah masuk waktu sholat ${prayer.name}. Selamat menunaikan ibadah.`
-            );
+            sendNotification(`Waktu ${prayer.name} Tiba`, `Selamat menunaikan ibadah sholat ${prayer.name}.`);
             sentNotificationsRef.current.add(key);
-
-            const newNotif: NotificationItem = {
-              id: Date.now(),
-              type: 'prayer',
-              title: `Waktu ${prayer.name} Tiba`,
-              desc: `Selamat menunaikan ibadah sholat ${prayer.name}.`,
-              time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-              read: false
-            };
-            setNotifications(prev => {
-               const updated = [newNotif, ...prev];
-               localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
-               return updated;
-            });
          }
       }
     });
-  }, [prayerSchedule, locationName, sendNotification]);
+  }, [prayerSchedule, sendNotification]);
 
-  // Timer
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
       if(!isAdminMode) checkPrayerNotifications();
     }, 1000);
     return () => clearInterval(timer);
-  }, [checkPrayerNotifications, isAdminMode]); 
+  }, [checkPrayerNotifications, isAdminMode]);
 
-  // --- API Fetches ---
+  // --- API FETCH NEWS ---
   const fetchHomeNews = useCallback(async (page: number) => {
     setNewsLoading(true);
     try {
       const response = await fetch(`https://muijakarta.or.id/wp-json/wp/v2/posts?_embed&per_page=5&page=${page}`);
       const data = await response.json();
       if (Array.isArray(data)) {
-        const formatted: NewsDetailData[] = data.map((item: any) => {
-          let cat = "BERITA";
-          if (item._embedded?.['wp:term']?.[0]?.[0]) {
-            cat = item._embedded['wp:term'][0][0].name.replace(/&amp;/gi, 'Dan');
-          }
-          let img = "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg";
-          if (item._embedded?.['wp:featuredmedia']?.[0]) {
-             img = item._embedded['wp:featuredmedia'][0].source_url;
-          }
-          return {
+        const formatted: NewsDetailData[] = data.map((item: any) => ({
             id: item.id,
             title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
             date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
             url: item.link, 
             content: item.content.rendered, 
-            imageUrl: img, 
+            imageUrl: item._embedded?.['wp:featuredmedia']?.[0]?.source_url || "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg", 
             author: item._embedded?.['author']?.[0]?.name || "Admin",
-            category: cat.toUpperCase()
-          };
-        });
+            category: (item._embedded?.['wp:term']?.[0]?.[0]?.name || "BERITA").toUpperCase()
+        }));
         setHomeNews(formatted);
       }
-    } catch (err) { console.error(err); } 
-    finally { setNewsLoading(false); }
+    } catch (err) {} finally { setNewsLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -574,359 +350,127 @@ const App: React.FC = () => {
     }
   }, [showSplash, newsPage, fetchHomeNews, isAdminMode]);
 
-  const daysToRamadan = useMemo(() => {
-    const today = new Date();
-    let target = new Date(2025, 2, 1); 
-    if (today > target) target = new Date(2026, 1, 18);
-    const diff = target.getTime() - today.getTime();
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-    return days > 0 ? days : 0;
-  }, []);
-
-  const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, cityDisplayName: string) => {
+  // --- LOCATION & PRAYER FETCH ---
+  const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, city: string) => {
     try {
-      const timestamp = Math.floor(Date.now() / 1000);
-      const response = await fetch(`https://api.aladhan.com/v1/timings/${timestamp}?latitude=${lat}&longitude=${lng}&method=20`);
+      const response = await fetch(`https://api.aladhan.com/v1/timings/${Math.floor(Date.now()/1000)}?latitude=${lat}&longitude=${lng}&method=20`);
       const data = await response.json();
-      if (data.code === 200 && data.data) {
+      if (data.code === 200) {
         setPrayerSchedule({
-          subuh: data.data.timings.Fajr,
-          terbit: data.data.timings.Sunrise,
-          dzuhur: data.data.timings.Dhuhr,
-          ashar: data.data.timings.Asr,
-          maghrib: data.data.timings.Maghrib,
-          isya: data.data.timings.Isha,
-          tanggal: data.data.date.readable,
-          lokasi: cityDisplayName
+          subuh: data.data.timings.Fajr, terbit: data.data.timings.Sunrise, dzuhur: data.data.timings.Dhuhr,
+          ashar: data.data.timings.Asr, maghrib: data.data.timings.Maghrib, isya: data.data.timings.Isha,
+          tanggal: data.data.date.readable, lokasi: city
         });
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {}
   }, []);
 
   useEffect(() => {
     if(isAdminMode) return;
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          setUserCoords({ lat: latitude, lng: longitude }); // Save coords for tracking
-          try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
-            const data = await res.json();
-            const city = data.address.city || data.address.town || "Lokasi Anda";
-            setLocationName(city);
-            fetchPrayerTimesByCoords(latitude, longitude, city);
-          } catch (err) {
-            setLocationName("Jakarta Pusat");
-            fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
-          }
-        }, 
-        () => {
-          setLocationName("Jakarta Pusat");
-          fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
-        }
-      );
-    } else {
-      setLocationName("Jakarta Pusat");
-      fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat");
-    }
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      setUserCoords({ lat: latitude, lng: longitude });
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
+        const data = await res.json();
+        const city = data.address.city || data.address.town || "Jakarta Pusat";
+        setLocationName(city);
+        fetchPrayerTimesByCoords(latitude, longitude, city);
+      } catch (err) { setLocationName("Jakarta Pusat"); fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat"); }
+    }, () => { setLocationName("Jakarta Pusat"); fetchPrayerTimesByCoords(-6.2088, 106.8456, "Jakarta Pusat"); });
   }, [fetchPrayerTimesByCoords, isAdminMode]);
+
+  const daysToRamadan = useMemo(() => {
+    const today = new Date();
+    let target = new Date(2025, 2, 1); 
+    if (today > target) target = new Date(2026, 1, 18);
+    return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }, []);
 
   const nextPrayer = useMemo(() => {
     if (!prayerSchedule) return { name: 'Memuat...', time: '--:--' };
     const now = new Date();
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    const timeToMinutes = (timeStr: string) => {
-      const [h, m] = timeStr.split(':').map(Number);
-      return h * 60 + m;
-    };
-    const schedule = [
-      { name: 'Subuh', time: prayerSchedule.subuh, minutes: timeToMinutes(prayerSchedule.subuh) },
-      { name: 'Terbit', time: prayerSchedule.terbit, minutes: timeToMinutes(prayerSchedule.terbit) },
-      { name: 'Dzuhur', time: prayerSchedule.dzuhur, minutes: timeToMinutes(prayerSchedule.dzuhur) },
-      { name: 'Ashar', time: prayerSchedule.ashar, minutes: timeToMinutes(prayerSchedule.ashar) },
-      { name: 'Maghrib', time: prayerSchedule.maghrib, minutes: timeToMinutes(prayerSchedule.maghrib) },
-      { name: 'Isya', time: prayerSchedule.isya, minutes: timeToMinutes(prayerSchedule.isya) },
+    const curMin = now.getHours() * 60 + now.getMinutes();
+    const list = [
+      { name: 'Subuh', time: prayerSchedule.subuh, min: parseInt(prayerSchedule.subuh.split(':')[0])*60 + parseInt(prayerSchedule.subuh.split(':')[1]) },
+      { name: 'Terbit', time: prayerSchedule.terbit, min: parseInt(prayerSchedule.terbit.split(':')[0])*60 + parseInt(prayerSchedule.terbit.split(':')[1]) },
+      { name: 'Dzuhur', time: prayerSchedule.dzuhur, min: parseInt(prayerSchedule.dzuhur.split(':')[0])*60 + parseInt(prayerSchedule.dzuhur.split(':')[1]) },
+      { name: 'Ashar', time: prayerSchedule.ashar, min: parseInt(prayerSchedule.ashar.split(':')[0])*60 + parseInt(prayerSchedule.ashar.split(':')[1]) },
+      { name: 'Maghrib', time: prayerSchedule.maghrib, min: parseInt(prayerSchedule.maghrib.split(':')[0])*60 + parseInt(prayerSchedule.maghrib.split(':')[1]) },
+      { name: 'Isya', time: prayerSchedule.isya, min: parseInt(prayerSchedule.isya.split(':')[0])*60 + parseInt(prayerSchedule.isya.split(':')[1]) },
     ];
-    const next = schedule.find(p => p.minutes > currentMinutes);
-    return next || { name: 'Subuh', time: prayerSchedule.subuh }; 
+    return list.find(p => p.min > curMin) || { name: 'Subuh', time: prayerSchedule.subuh }; 
   }, [prayerSchedule, currentTime]);
 
   const countdown = useMemo(() => {
-    if (!prayerSchedule || nextPrayer.time === '--:--') return "00:00:00";
+    if (!prayerSchedule) return "00:00:00";
     const [h, m] = nextPrayer.time.split(':').map(Number);
-    const target = new Date(currentTime);
-    target.setHours(h, m, 0, 0);
+    const target = new Date(currentTime); target.setHours(h, m, 0, 0);
     if (target < currentTime) target.setDate(target.getDate() + 1);
     const diff = target.getTime() - currentTime.getTime();
-    if (diff < 0) return "00:00:00";
     const pad = (n: number) => n.toString().padStart(2, '0');
     return `${pad(Math.floor(diff / 3600000))}:${pad(Math.floor((diff % 3600000) / 60000))}:${pad(Math.floor((diff % 60000) / 1000))}`;
   }, [nextPrayer, prayerSchedule, currentTime]);
 
-  useEffect(() => {
-    const splashTimer = setTimeout(() => setShowSplash(false), 2000);
-    return () => clearTimeout(splashTimer);
-  }, []);
+  useEffect(() => { setTimeout(() => setShowSplash(false), 2000); }, []);
 
   const handleQuickNavigation = (menuId: string) => {
     if (menuId === 'halal') setIsHalalOpen(true);
-    if (menuId === 'lainnya') setIsMenuOpen(true);
-    if (menuId === 'jadwal') setIsPrayerPageOpen(true);
-    if (menuId === 'quran') setIsQuranOpen(true);
-    if (menuId === 'hadits') setIsHaditsOpen(true);
-    if (menuId === 'kiblat') setIsKiblatOpen(true);
-    if (menuId === 'fatwa') setIsFatwaOpen(true);
-    if (menuId === 'berita') setIsNewsOpen(true);
-    if (menuId === 'calendar') setIsCalendarOpen(true);
-    if (menuId === 'install') handleInstallApp();
+    else if (menuId === 'lainnya') setIsMenuOpen(true);
+    else if (menuId === 'jadwal') setIsPrayerPageOpen(true);
+    else if (menuId === 'quran') setIsQuranOpen(true);
+    else if (menuId === 'hadits') setIsHaditsOpen(true);
+    else if (menuId === 'kiblat') setIsKiblatOpen(true);
+    else if (menuId === 'fatwa') setIsFatwaOpen(true);
+    else if (menuId === 'berita') setIsNewsOpen(true);
+    else if (menuId === 'calendar') setIsCalendarOpen(true);
+    else if (menuId === 'install') handleInstallApp();
   };
 
   if (isAdminMode) {
-    if (!isAdminAuthenticated) {
-      return <AdminLogin onLogin={handleAdminLogin} />;
-    }
+    if (!isAdminAuthenticated) return <AdminLogin onLogin={handleAdminLogin} />;
     return <AdminDashboard onLogout={handleAdminLogout} />;
   }
-
   if (showSplash) return <SplashScreen />;
-
-  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <div className="w-full min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
-      
-      {/* Header Background */}
-      <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0">
-          <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
-      </div>
-
+      <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0"><div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div></div>
       <div className="relative z-10 pt-14 flex flex-col items-center">
-        {/* Top Bar */}
         <div className="w-full px-6 flex justify-between items-start mb-0 relative z-20 pt-2">
-          <button 
-            onClick={() => setIsSearchOpen(true)}
-            className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"
-          >
-            <Search size={22} />
-          </button>
-          
-          <div className="flex flex-col items-center mt-1.5">
-             <div className="flex items-center space-x-1.5 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                <MapPin size={10} className="text-red-400 fill-red-400" />
-                <span className="text-[10px] font-bold text-white tracking-wide truncate max-w-[120px]">{locationName}</span>
-             </div>
-          </div>
-
-          <button 
-            onClick={() => setIsNotifOpen(true)}
-            className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform"
-          >
-            <Bell size={22} />
-            {unreadCount > 0 && (
-               <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>
-            )}
-          </button>
+          <button onClick={() => setIsSearchOpen(true)} className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-transform"><Search size={22} /></button>
+          <div className="flex flex-col items-center mt-1.5"><div className="flex items-center space-x-1.5 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10"><MapPin size={10} className="text-red-400 fill-red-400" /><span className="text-[10px] font-bold text-white tracking-wide truncate max-w-[120px]">{locationName}</span></div></div>
+          <button onClick={() => setIsNotifOpen(true)} className="bg-white/10 p-2.5 rounded-2xl text-white backdrop-blur-md relative border border-white/10 shadow-lg active:scale-95 transition-transform"><Bell size={22} />{notifications.filter(n=>!n.read).length > 0 && <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>}</button>
         </div>
-
         <div className="w-full flex flex-col items-center pb-6 pt-0 px-6 relative z-20">
-          <div className="mb-2">
-             <div className="w-20 h-20 bg-white rounded-full p-1 shadow-2xl flex items-center justify-center border border-white active:scale-105 transition-transform overflow-hidden">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI" className="w-full h-full object-contain" />
-             </div>
-          </div>
-
-          <div className="text-center mb-2">
-            <h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-lg uppercase">
-              {nextPrayer.name}' {nextPrayer.time} <span className="text-sm font-bold opacity-70">WIB</span>
-            </h2>
-          </div>
-
-          <div className="text-sm font-bold text-white/90 mb-3 bg-black/30 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/5 flex items-center shadow-lg">
-            <span className="mr-2 text-orange-400 font-black">-</span> {countdown}
-          </div>
-
+          <div className="mb-2"><div className="w-20 h-20 bg-white rounded-full p-1 shadow-2xl flex items-center justify-center border border-white overflow-hidden"><img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI" className="w-full h-full object-contain" /></div></div>
+          <div className="text-center mb-2"><h2 className="text-3xl font-black text-white tracking-tighter drop-shadow-lg uppercase">{nextPrayer.name}' {nextPrayer.time} <span className="text-sm font-bold opacity-70">WIB</span></h2></div>
+          <div className="text-sm font-bold text-white/90 mb-3 bg-black/30 backdrop-blur-md px-6 py-2 rounded-2xl border border-white/5 flex items-center shadow-lg"><span className="mr-2 text-orange-400 font-black">-</span> {countdown}</div>
           <div className="text-[10px] font-black text-gray-900 tracking-wider bg-white/40 backdrop-blur-md px-6 py-2.5 rounded-full uppercase border border-white/20 shadow-xl flex items-center justify-center whitespace-nowrap overflow-hidden">
-            <span className="shrink-0">
-              {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </span>
+            <span>{currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
             <span className="opacity-60 font-bold mx-2 text-[12px]">|</span>
-            <span className="shrink-0">
-              {new Intl.DateTimeFormat('id-ID-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' })
-                .format(currentTime)
-                .replace(/AH|H/gi, '')
-                .trim()} H
-            </span>
+            <span>{new Intl.DateTimeFormat('id-ID-u-ca-islamic-umalqura', { day: 'numeric', month: 'long', year: 'numeric' }).format(currentTime).replace(/AH|H/gi, '').trim()} H</span>
           </div>
         </div>
       </div>
-
       <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-32">
-        <div className="grid grid-cols-4 md:grid-cols-8 gap-x-3 gap-y-8 pb-8">
-          {QUICK_MENUS.map((menu) => (
-            <button 
-              key={menu.id} 
-              onClick={() => handleQuickNavigation(menu.id)}
-              className="flex flex-col items-center group active:scale-95 transition-all duration-200"
-            >
-              <div className={`w-[62px] h-[62px] rounded-2xl flex items-center justify-center ${menu.color} shadow-sm border border-gray-100/30 mb-2 group-hover:shadow-md transition-shadow`}>
-                {menu.icon}
-              </div>
-              <span className="text-[10px] font-bold text-gray-500 text-center leading-tight tracking-tight uppercase px-1">{menu.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {notificationPermission === 'default' && (
-           <div className="bg-[#fff7ed] rounded-[32px] p-5 shadow-sm border border-orange-100 mb-6 flex items-start space-x-4 relative overflow-hidden">
-               <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center shrink-0 text-orange-600">
-                   <BellRing size={24} />
-               </div>
-               <div className="flex-1">
-                   <h3 className="font-bold text-gray-900 text-sm mb-1">Aktifkan Pengingat Sholat</h3>
-                   <p className="text-xs text-gray-500 leading-relaxed mb-3">
-                       Izinkan browser mengirim notifikasi agar Anda tidak ketinggalan waktu sholat.
-                   </p>
-                   <button 
-                       onClick={handleRequestPermission}
-                       className="bg-[#f97316] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-orange-200 active:scale-95 transition-transform"
-                   >
-                       Izinkan Notifikasi
-                   </button>
-               </div>
-           </div>
-        )}
-
-        <div className="bg-gradient-to-br from-[#00a896] to-emerald-700 rounded-[32px] p-6 shadow-xl shadow-teal-900/10 mb-6 relative overflow-hidden group">
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
-          <div className="relative z-10 flex items-center justify-between">
-             <div className="flex flex-col">
-                <div className="flex items-center space-x-2 mb-1">
-                   <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-widest border border-white/10">1446 H</span>
-                </div>
-                <h3 className="text-white text-lg font-medium leading-tight mb-2">Menuju Bulan Suci <br/><span className="font-black text-2xl">Ramadhan</span></h3>
-                <div className="flex items-baseline space-x-1.5 mt-1">
-                   <span className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">{daysToRamadan}</span>
-                   <span className="text-sm font-bold text-teal-100">Hari Lagi</span>
-                </div>
-             </div>
-             <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/10 shadow-lg relative shrink-0">
-                <div className="absolute inset-0 bg-white/20 blur-xl rounded-full"></div>
-                <img src="https://m.muijakarta.or.id/img/puasa.png" alt="Ramadhan" className="w-16 h-16 object-contain drop-shadow-md relative z-10" />
-             </div>
-          </div>
-        </div>
-
-        <div 
-          onClick={() => {
-            if (dailyQuote) {
-              const text = `"${dailyQuote.content}"\n\n(${dailyQuote.source})\n\nVia Aplikasi MUI Jakarta`;
-              navigator.clipboard.writeText(text);
-              setIsCopied(true);
-              setTimeout(() => setIsCopied(false), 2000);
-            }
-          }}
-          className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-4 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl hover:shadow-teal-900/10 transition-all active:scale-[0.98]"
-        >
-           <div className="absolute top-0 left-0 w-20 h-20 bg-teal-50 rounded-br-[80px] opacity-60 -ml-6 -mt-6 pointer-events-none"></div>
-           <div className="absolute bottom-0 right-0 w-24 h-24 bg-orange-50 rounded-tl-[100px] opacity-60 -mr-8 -mb-8 pointer-events-none"></div>
-           <div className="w-full flex justify-between items-center mb-4 relative z-10">
-              <div className="flex items-center space-x-2">
-                 <div className="h-6 w-1 bg-orange-500 rounded-full"></div>
-                 <div><h3 className="font-bold text-gray-800 text-lg leading-none">Quote Hari Ini</h3></div>
-              </div>
-              <div className={`p-2 rounded-full transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>
-                 {isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}
-              </div>
-           </div>
-           <div className="relative z-10 w-full text-center py-2 px-2">
-              <p className="text-base text-gray-700 font-medium italic leading-relaxed">"{dailyQuote?.content}"</p>
-              <div className="mt-4 inline-block">
-                 <span className="text-[10px] font-black text-[#00a896] uppercase tracking-widest bg-teal-50 px-3 py-1.5 rounded-full border border-teal-100">{dailyQuote?.source}</span>
-              </div>
-           </div>
-        </div>
-
-        <div 
-          onClick={() => setIsMosqueOpen(true)}
-          className="bg-gradient-to-r from-[#00a896] to-teal-700 rounded-[32px] p-5 shadow-lg shadow-teal-900/10 mb-8 flex items-center justify-between relative overflow-hidden cursor-pointer group hover:shadow-xl hover:shadow-teal-900/20 transition-all active:scale-[0.98]"
-        >
-          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
-          <div className="relative z-10 flex items-center space-x-4">
-            <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-white/20">
-               <img src="https://m.muijakarta.or.id/img/masjid.png" alt="Masjid" className="w-9 h-9 object-contain drop-shadow-md" />
-            </div>
-            <div>
-               <h3 className="font-bold text-white text-lg leading-tight">Masjid Terdekat</h3>
-               <p className="text-[10px] text-teal-100 font-medium mt-1">Temukan tempat ibadah di sekitar Anda</p>
-            </div>
-          </div>
-          <div className="w-10 h-10 bg-white text-[#00a896] rounded-full flex items-center justify-center shadow-md relative z-10 group-hover:scale-110 transition-transform">
-             <Navigation size={20} fill="currentColor" />
-          </div>
-        </div>
-
-        <div className="pb-10">
-          <div className="flex justify-between items-center mb-6">
-             <h2 className="text-xl font-black text-gray-800 border-l-4 border-[#00a896] pl-3">Info Terkini</h2>
-             <button onClick={() => setIsNewsOpen(true)} className="text-[#00a896] text-xs font-bold flex items-center active:opacity-70">Lihat Semua <ArrowRight size={14} className="ml-1" /></button>
-          </div>
-          
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-x-3 gap-y-8 pb-8">{QUICK_MENUS.map((menu) => (<button key={menu.id} onClick={() => handleQuickNavigation(menu.id)} className="flex flex-col items-center group active:scale-95 transition-all duration-200"><div className={`w-[62px] h-[62px] rounded-2xl flex items-center justify-center ${menu.color} shadow-sm border border-gray-100/30 mb-2 group-hover:shadow-md transition-shadow`}>{menu.icon}</div><span className="text-[10px] font-bold text-gray-500 text-center leading-tight tracking-tight uppercase px-1">{menu.label}</span></button>))}</div>
+        <div className="bg-gradient-to-br from-[#00a896] to-emerald-700 rounded-[32px] p-6 shadow-xl shadow-teal-900/10 mb-6 relative overflow-hidden group"><div className="relative z-10 flex items-center justify-between"><div className="flex flex-col"><div className="flex items-center space-x-2 mb-1"><span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-widest border border-white/10">1446 H</span></div><h3 className="text-white text-lg font-medium leading-tight mb-2">Menuju Bulan Suci <br/><span className="font-black text-2xl">Ramadhan</span></h3><div className="flex items-baseline space-x-1.5 mt-1"><span className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">{daysToRamadan}</span><span className="text-sm font-bold text-teal-100">Hari Lagi</span></div></div><div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/10 shadow-lg relative shrink-0"><img src="https://m.muijakarta.or.id/img/puasa.png" alt="Ramadhan" className="w-16 h-16 object-contain drop-shadow-md relative z-10" /></div></div></div>
+        <div onClick={() => { if (dailyQuote) { navigator.clipboard.writeText(`"${dailyQuote.content}"\n\n(${dailyQuote.source})\n\nVia Aplikasi MUI Jakarta`); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); } }} className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-4 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl transition-all active:scale-[0.98]"><div className="w-full flex justify-between items-center mb-4 relative z-10"><div className="flex items-center space-x-2"><div className="h-6 w-1 bg-orange-500 rounded-full"></div><h3 className="font-bold text-gray-800 text-lg leading-none">Quote Hari Ini</h3></div><div className={`p-2 rounded-full transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>{isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}</div></div><p className="text-base text-gray-700 font-medium italic leading-relaxed text-center relative z-10">"{dailyQuote?.content}"</p><div className="mt-4 inline-block relative z-10"><span className="text-[10px] font-black text-[#00a896] uppercase tracking-widest bg-teal-50 px-3 py-1.5 rounded-full border border-teal-100">{dailyQuote?.source}</span></div></div>
+        <div className="pb-10"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-black text-gray-800 border-l-4 border-[#00a896] pl-3">Info Terkini</h2><button onClick={() => setIsNewsOpen(true)} className="text-[#00a896] text-xs font-bold flex items-center active:opacity-70">Lihat Semua <ArrowRight size={14} className="ml-1" /></button></div>
           <div className="space-y-4">
-            {newsLoading && homeNews.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 bg-white rounded-[32px] border border-gray-50">
-                <Loader2 className="animate-spin text-[#00a896] mb-2" size={24} />
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Memuat Berita...</p>
-              </div>
-            ) : (
-              <>
-                {homeNews.map((item) => (
-                  <div key={item.id} onClick={() => { setSelectedNews(item); setIsNewsDetailOpen(true); }} className="flex flex-col bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30 cursor-pointer overflow-hidden">
-                     <div className="w-full h-40 rounded-[16px] overflow-hidden mb-3 relative bg-gray-100">
-                        <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-                     </div>
-                     <h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 px-1 mb-1" dangerouslySetInnerHTML={{ __html: item.title }} />
-                  </div>
-                ))}
-                <div className="flex items-center justify-center space-x-2 mt-6">
-                  <button onClick={() => setNewsPage(prev => Math.max(1, prev - 1))} disabled={newsPage === 1 || newsLoading} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 disabled:opacity-30 active:scale-90 transition-transform"><ChevronLeft size={16} /></button>
-                  <div className="flex space-x-1"><span className="h-8 flex items-center justify-center px-3 font-bold text-xs bg-[#00a896] text-white rounded-xl shadow-md">{newsPage}</span></div>
-                  <button onClick={() => setNewsPage(prev => prev + 1)} disabled={newsLoading || homeNews.length < 5} className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-500 disabled:opacity-30 active:scale-90 transition-transform"><ChevronRight size={16} /></button>
-                </div>
-              </>
-            )}
+            {newsLoading && homeNews.length === 0 ? <div className="flex flex-col items-center py-12 bg-white rounded-[32px] border border-gray-50"><Loader2 className="animate-spin text-[#00a896] mb-2" size={24} /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Memuat Berita...</p></div> : 
+              homeNews.map((item) => (<div key={item.id} onClick={() => { setSelectedNews(item); setIsNewsDetailOpen(true); }} className="flex flex-col bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden"><div className="w-full h-40 rounded-[16px] overflow-hidden mb-3 relative bg-gray-100"><img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" /></div><h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 px-1 mb-1" dangerouslySetInnerHTML={{ __html: item.title }} /></div>))
+            }
           </div>
         </div>
       </div>
-
-      <nav className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
-        <div className="flex-1 flex justify-between pr-4 pb-1">
-          <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all">
-             <div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50">
-                 <img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" />
-             </div>
-             <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Video</span>
-          </button>
-          <button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><FileText size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Fatwa</span></button>
-        </div>
-        <div className="relative -top-6 px-2 flex flex-col items-center">
-           <button onClick={() => {
-                setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
-                setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
-                setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false); setIsVideoOpen(false);
-             }}
-             className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
-           ><Home size={24} /></button>
-           <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span>
-           <span className="text-[8px] font-medium text-gray-400 -mt-0.5">Ver {appVersion}</span>
-        </div>
-        <div className="flex-1 flex justify-between pl-4 pb-1">
-          <button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><CalendarIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Kalender</span></button>
-          <button onClick={() => setIsProfileOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><User size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Profil</span></button>
-        </div>
+      <nav className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-lg flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
+        <div className="flex-1 flex justify-between pr-4 pb-1"><button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Video</span></button><button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><FileText size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Fatwa</span></button></div>
+        <div className="relative -top-6 px-2 flex flex-col items-center"><button onClick={() => { setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false); setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false); setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false); setIsVideoOpen(false); }} className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"><Home size={24} /></button><span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span><span className="text-[8px] font-medium text-gray-400 -mt-0.5">Ver {appVersion}</span></div>
+        <div className="flex-1 flex justify-between pl-4 pb-1"><button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><CalendarIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Kalender</span></button><button onClick={() => setIsProfileOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><User size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Profil</span></button></div>
       </nav>
-
-      <InstallPwaModal isOpen={isInstallModalOpen} onClose={handleCloseInstallModal} onInstall={handleInstallApp} isIOS={isIOS} />
+      <InstallPwaModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallApp} isIOS={isIOS} />
       <PermissionModal isOpen={isPermissionModalOpen} onClose={() => setIsPermissionModalOpen(false)} onPermissionsGranted={() => setIsPermissionModalOpen(false)} />
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onNavigate={handleQuickNavigation} />
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
@@ -941,7 +485,7 @@ const App: React.FC = () => {
       <CalendarPage isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
       <NewsDetailModal isOpen={isNewsDetailOpen} onClose={() => setIsNewsDetailOpen(false)} news={selectedNews} />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />
-      <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} notifications={notifications} onRemove={handleRemoveNotification} onMarkAllRead={handleMarkAllRead} />
+      <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} notifications={notifications} onRemove={(id) => { const updated = notifications.filter(n=>n.id!==id); setNotifications(updated); localStorage.setItem('mui_notifications_local', JSON.stringify(updated)); }} onMarkAllRead={() => { const updated = notifications.map(n=>({...n,read:true})); setNotifications(updated); localStorage.setItem('mui_notifications_local', JSON.stringify(updated)); }} />
       <InfoModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} title="Profil Pengguna" message="Fitur Profil dan akun pengguna saat ini masih dalam tahap pengembangan." />
     </div>
   );
