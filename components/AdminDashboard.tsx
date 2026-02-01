@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Send, Trash2, LogOut, CheckCircle, Smartphone } from 'lucide-react';
+import { Bell, Send, Trash2, LogOut, CheckCircle, Smartphone, AlertCircle } from 'lucide-react';
 import { NotificationItem } from './NotificationModal';
+import { ref, push, onValue, remove, set } from 'firebase/database';
+import { db } from '../firebaseConfig';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -11,37 +13,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [message, setMessage] = useState('');
   const [history, setHistory] = useState<NotificationItem[]>([]);
   const [success, setSuccess] = useState('');
+  const [isDbReady, setIsDbReady] = useState(false);
 
-  // Initial load to show history list
+  // Load History from Firebase
   useEffect(() => {
-    refreshHistory();
+    if (!db) return;
+
+    setIsDbReady(true);
+    const historyRef = ref(db, 'notifications');
+    
+    // Realtime Listener
+    const unsubscribe = onValue(historyRef, (snapshot) => {
+       const data = snapshot.val();
+       if (data) {
+          // Convert Object to Array & Reverse (Newest First)
+          const list = Object.values(data) as NotificationItem[];
+          list.sort((a, b) => b.id - a.id);
+          setHistory(list);
+       } else {
+          setHistory([]);
+       }
+    });
+
+    return () => unsubscribe();
   }, []);
 
-  const refreshHistory = () => {
-    const saved = localStorage.getItem('mui_notifications');
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch (e) {
-        setHistory([]);
-      }
-    }
-  };
-
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !message) return;
 
-    // 1. PENTING: Ambil data terbaru dari localStorage sesaat sebelum update
-    // Ini mencegah Admin menimpa data notifikasi yang mungkin sudah diubah statusnya oleh user (read/unread)
-    let currentData: NotificationItem[] = [];
-    const saved = localStorage.getItem('mui_notifications');
-    if (saved) {
-      try {
-        currentData = JSON.parse(saved);
-      } catch (e) {
-        currentData = [];
-      }
+    if (!db) {
+       alert("Firebase belum dikonfigurasi. Cek file firebaseConfig.ts");
+       return;
     }
 
     const newNotif: any = {
@@ -51,29 +54,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       desc: message,
       time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
       read: false,
-      isNewBroadcast: true // Flag untuk mentrigger push notif di sisi user
     };
 
-    // Tambahkan notifikasi baru di paling atas
-    const updatedHistory = [newNotif, ...currentData];
-    
-    // 2. Simpan ke LocalStorage
-    localStorage.setItem('mui_notifications', JSON.stringify(updatedHistory));
-    
-    // 3. Update state UI Admin
-    setHistory(updatedHistory);
-
-    setSuccess('Notifikasi berhasil dikirim!');
-    setTitle('');
-    setMessage('');
-    
-    setTimeout(() => setSuccess(''), 3000);
+    try {
+       // Kirim ke Firebase
+       await push(ref(db, 'notifications'), newNotif);
+       
+       setSuccess('Notifikasi terkirim ke server!');
+       setTitle('');
+       setMessage('');
+       
+       setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+       console.error(err);
+       alert("Gagal mengirim ke database.");
+    }
   };
 
-  const clearHistory = () => {
-    if(confirm('Hapus semua riwayat notifikasi?')) {
-        setHistory([]);
-        localStorage.removeItem('mui_notifications');
+  const clearHistory = async () => {
+    if(confirm('Hapus semua riwayat notifikasi di Database? (Ini akan menghapus data di sisi user juga)')) {
+        if(db) {
+            await set(ref(db, 'notifications'), null);
+        }
     }
   };
 
@@ -87,7 +89,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
            </div>
            <div>
              <h1 className="font-bold text-lg leading-none">Admin Panel</h1>
-             <p className="text-[10px] opacity-80 uppercase tracking-wider">Push Notification Center</p>
+             <p className="text-[10px] opacity-80 uppercase tracking-wider">Push Notification Center (Firebase)</p>
            </div>
         </div>
         <button onClick={onLogout} className="flex items-center space-x-1 bg-black/20 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-black/30 transition-colors">
@@ -108,6 +110,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 <h2 className="text-xl font-bold text-gray-800">Buat Notifikasi</h2>
              </div>
 
+             {!isDbReady && (
+                 <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold mb-4 flex items-start space-x-2 border border-red-100">
+                     <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                     <p>Database belum terkoneksi. Edit file <code>firebaseConfig.ts</code> dengan API Key Anda.</p>
+                 </div>
+             )}
+
              <form onSubmit={handleSend} className="space-y-4">
                 <div>
                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Judul Notifikasi</label>
@@ -117,6 +126,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       onChange={(e) => setTitle(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:outline-none focus:border-[#00827f] font-bold"
                       placeholder="Contoh: Info Kajian Rutin"
+                      disabled={!isDbReady}
                    />
                 </div>
                 <div>
@@ -127,6 +137,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       onChange={(e) => setMessage(e.target.value)}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 focus:outline-none focus:border-[#00827f]"
                       placeholder="Tulis pesan lengkap disini..."
+                      disabled={!isDbReady}
                    />
                 </div>
 
@@ -138,7 +149,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                 <button 
                   type="submit"
-                  className="w-full bg-[#00827f] text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-teal-200 active:scale-95 transition-all flex items-center justify-center space-x-2 hover:bg-teal-700"
+                  disabled={!isDbReady}
+                  className="w-full bg-[#00827f] text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-teal-200 active:scale-95 transition-all flex items-center justify-center space-x-2 hover:bg-teal-700 disabled:opacity-50"
                 >
                    <Send size={18} />
                    <span>Kirim ke Semua User</span>
@@ -150,7 +162,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         {/* History Section */}
         <div>
            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-800 ml-2">Riwayat Terkirim</h2>
+              <h2 className="text-lg font-bold text-gray-800 ml-2">Riwayat Database</h2>
               <button onClick={clearHistory} className="text-red-500 text-xs font-bold flex items-center hover:bg-red-50 px-3 py-1 rounded-lg transition-colors">
                  <Trash2 size={14} className="mr-1" /> Bersihkan
               </button>
@@ -159,7 +171,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
            <div className="space-y-3 h-[500px] overflow-y-auto pr-2">
               {history.length === 0 ? (
                  <div className="text-center py-10 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
-                    <p className="text-sm">Belum ada notifikasi terkirim</p>
+                    <p className="text-sm">Belum ada notifikasi di database</p>
                  </div>
               ) : (
                  history.map((item) => (
@@ -170,7 +182,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                        </div>
                        <p className="text-sm text-gray-500 leading-relaxed">{item.desc}</p>
                        <div className="mt-2 text-[10px] font-bold text-teal-600 uppercase tracking-wide flex items-center">
-                          <CheckCircle size={12} className="mr-1" /> Terkirim ke User
+                          <CheckCircle size={12} className="mr-1" /> Tersimpan di Cloud
                        </div>
                     </div>
                  ))

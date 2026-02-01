@@ -40,6 +40,10 @@ import PermissionModal from './components/PermissionModal';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
+// FIREBASE IMPORTS
+import { ref, onChildAdded, limitToLast, query, orderByKey } from 'firebase/database';
+import { db } from './firebaseConfig';
+
 // --- Global Constant Declaration ---
 declare const __APP_VERSION__: string;
 // -------------------------------------
@@ -82,8 +86,6 @@ const SplashScreen: React.FC = () => (
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
-  // Gunakan variabel global yang didefinisikan di vite.config.ts
-  // Gunakan try-catch atau typeof check untuk keamanan ekstra di environment tertentu
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
   
   // --- Admin Mode Logic ---
@@ -129,30 +131,24 @@ const App: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const lastNotificationIdRef = useRef<number>(0);
 
   // --- FORCE PWA UPDATE LOGIC ---
   useEffect(() => {
-    // 1. Unregister old service workers to clear cache
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
           registration.unregister();
         }
-      }).catch(err => {
-        // Suppress invalid state errors during unmount/reload
-        console.debug("SW cleanup:", err);
-      });
+      }).catch(err => console.debug("SW cleanup:", err));
     }
   }, []);
-  // -----------------------------
 
   // --- Check Admin Mode on Mount ---
   useEffect(() => {
-    // Check URL parameters for ?mode=admin
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'admin') {
       setIsAdminMode(true);
-      // Check session
       const session = localStorage.getItem('mui_admin_session');
       if (session === 'true') {
         setIsAdminAuthenticated(true);
@@ -167,17 +163,15 @@ const App: React.FC = () => {
   const handleAdminLogout = () => {
     localStorage.removeItem('mui_admin_session');
     setIsAdminAuthenticated(false);
-    // Redirect back to user mode
     window.location.href = window.location.pathname;
   };
 
-  // --- Logic PWA Install (UPDATED) ---
+  // --- Logic PWA Install ---
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase();
     const ios = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(ios);
 
-    // 1. Capture event for Android/Chrome (Still needed for the button to work)
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -186,14 +180,10 @@ const App: React.FC = () => {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // 2. FORCE SHOW MODAL LOGIC
-    // Cek apakah aplikasi berjalan di mode browser (bukan standalone/terinstall)
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
 
-    // Jika belum install, belum dismiss, bukan admin, dan splash sudah selesai
     if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash) {
-       // Beri jeda 3 detik agar user melihat halaman depan dulu
        const timer = setTimeout(() => {
           setIsInstallModalOpen(true);
        }, 3000);
@@ -214,10 +204,8 @@ const App: React.FC = () => {
         setIsInstallModalOpen(false);
       }
     } else if (isIOS) {
-       // iOS instructions are inside the modal content
        setIsInstallModalOpen(true);
     } else {
-       // Fallback for browsers that don't support beforeinstallprompt but aren't installed
        alert("Untuk menginstall: Tap menu browser (titik tiga) lalu pilih 'Install App' atau 'Tambahkan ke Layar Utama'");
     }
   };
@@ -232,7 +220,6 @@ const App: React.FC = () => {
     if ('Notification' in window && Notification.permission !== 'granted') {
       shouldShow = true;
     }
-    // Only show permission modal if Install Modal is NOT open to avoid stacking
     if (shouldShow && !isAdminMode && !isInstallModalOpen) {
       setIsPermissionModalOpen(true);
     }
@@ -242,7 +229,7 @@ const App: React.FC = () => {
     if (!showSplash && !isAdminMode && !isInstallModalOpen) {
       const timer = setTimeout(() => {
          checkInitialPermissions();
-      }, 1000); // Wait a bit longer than install modal check
+      }, 1000);
       return () => clearTimeout(timer);
     }
   }, [showSplash, isAdminMode, isInstallModalOpen]);
@@ -260,80 +247,101 @@ const App: React.FC = () => {
   const handleRemoveNotification = (id: number) => {
     const updated = notifications.filter(n => n.id !== id);
     setNotifications(updated);
-    // Sync removal to local storage if it was a system notification
-    localStorage.setItem('mui_notifications', JSON.stringify(updated));
+    // Kita tetap simpan state lokal di localStorage agar status 'read' terjaga di user
+    localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
   };
 
   const handleMarkAllRead = () => {
     const updated = notifications.map(n => ({...n, read: true}));
     setNotifications(updated);
-    localStorage.setItem('mui_notifications', JSON.stringify(updated));
+    localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
   };
 
   // --- Logic Push Notification Browser & In-App ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
     if ("Notification" in window && Notification.permission === "granted") {
       try {
-        new Notification(title, {
+        const notif = new Notification(title, {
           body: body,
           icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
           badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
           vibrate: [200, 100, 200],
           tag: isFromAdmin ? `admin-${Date.now()}` : title
         } as any);
+        
+        // Handle klik notifikasi
+        notif.onclick = function() {
+            window.focus();
+            notif.close();
+        };
       } catch (e) {
         console.warn("Browser notification failed", e);
       }
     }
   }, []);
 
-  // --- SYNC NOTIFICATIONS FROM LOCAL STORAGE (Admin -> User) ---
+  // --- FIREBASE SYNC (USER RECEIVER) ---
   useEffect(() => {
-    const loadStoredNotifs = () => {
-       const stored = localStorage.getItem('mui_notifications');
-       if (stored) {
-         try {
-           const parsed: any[] = JSON.parse(stored);
-           setNotifications(parsed);
-         } catch (e) {
-           console.error("Failed parsing notifications", e);
-         }
-       }
-    };
-    loadStoredNotifs();
-  }, []);
+    // 1. Load Local State First (Read/Deleted status)
+    const localStored = localStorage.getItem('mui_notifications_local');
+    let localData: NotificationItem[] = [];
+    if (localStored) {
+      try {
+        localData = JSON.parse(localStored);
+        if (localData.length > 0) {
+           setNotifications(localData);
+           lastNotificationIdRef.current = Math.max(...localData.map(n => n.id));
+        }
+      } catch (e) {}
+    }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-       const stored = localStorage.getItem('mui_notifications');
-       if (stored) {
-         try {
-           const parsed: any[] = JSON.parse(stored);
-           const newBroadcasts = parsed.filter(n => n.isNewBroadcast === true);
-           
-           if (newBroadcasts.length > 0) {
-              newBroadcasts.forEach(item => {
-                 sendNotification(item.title, item.desc, true);
-              });
-              const updated = parsed.map(n => ({ ...n, isNewBroadcast: false }));
-              localStorage.setItem('mui_notifications', JSON.stringify(updated));
-              setNotifications(updated);
-           } else {
-             setNotifications(prev => {
-                // Only update state if data actually changed
-                if (JSON.stringify(prev) !== JSON.stringify(parsed)) return parsed;
-                return prev;
-             });
-           }
-         } catch(e) {}
-       }
-    }, 2000); 
+    if (!db) return; // Jika firebase belum dikonfigurasi
 
-    return () => clearInterval(interval);
+    // 2. Listen to Firebase Realtime Database
+    const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(5));
+    
+    const unsubscribe = onChildAdded(notifRef, (snapshot) => {
+       const data = snapshot.val();
+       if (data && data.id) {
+          // Cek apakah notifikasi ini sudah ada di state lokal (untuk menghindari duplikat)
+          setNotifications(prev => {
+             const exists = prev.some(n => n.id === data.id);
+             if (exists) return prev;
+             
+             // Jika notifikasi baru (waktu kedatangan > waktu terakhir aplikasi dibuka atau belum ada di list)
+             // Tampilkan Push Notification
+             if (data.id > lastNotificationIdRef.current) {
+                 // Cek agar tidak memunculkan notif lama saat baru buka app (optional time check)
+                 const notifTime = new Date(data.id).getTime();
+                 const now = new Date().getTime();
+                 // Tampilkan popup jika notifikasi berumur kurang dari 24 jam
+                 if (now - notifTime < 86400000) { 
+                    sendNotification(data.title, data.desc, true);
+                 }
+                 lastNotificationIdRef.current = data.id;
+             }
+
+             const newNotifItem: NotificationItem = {
+                id: data.id,
+                type: 'news',
+                title: data.title,
+                desc: data.desc,
+                time: data.time,
+                read: false
+             };
+             
+             const updated = [newNotifItem, ...prev];
+             // Simpan ke local storage agar status read/unread user tersimpan
+             localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
+             return updated;
+          });
+       }
+    });
+
+    return () => unsubscribe();
   }, [sendNotification]);
 
-
-  // Logika Pengecekan Waktu Sholat
+  // Logika Pengecekan Waktu Sholat (Lokal)
   const checkPrayerNotifications = useCallback(() => {
     if (!prayerSchedule) return;
 
@@ -381,7 +389,7 @@ const App: React.FC = () => {
             };
             setNotifications(prev => {
                const updated = [newNotif, ...prev];
-               localStorage.setItem('mui_notifications', JSON.stringify(updated));
+               localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
                return updated;
             });
          }
@@ -406,7 +414,7 @@ const App: React.FC = () => {
             };
             setNotifications(prev => {
                const updated = [newNotif, ...prev];
-               localStorage.setItem('mui_notifications', JSON.stringify(updated));
+               localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
                return updated;
             });
          }
@@ -570,7 +578,6 @@ const App: React.FC = () => {
     if (menuId === 'install') handleInstallApp();
   };
 
-  // --- RENDER ADMIN MODE ---
   if (isAdminMode) {
     if (!isAdminAuthenticated) {
       return <AdminLogin onLogin={handleAdminLogin} />;
@@ -578,7 +585,6 @@ const App: React.FC = () => {
     return <AdminDashboard onLogout={handleAdminLogout} />;
   }
 
-  // --- RENDER USER MODE ---
   if (showSplash) return <SplashScreen />;
 
   const unreadCount = notifications.filter(n => !n.read).length;
