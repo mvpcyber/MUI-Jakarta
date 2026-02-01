@@ -9,7 +9,8 @@ import {
   ChevronRight,
   ChevronLeft,
   ScrollText,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import FatwaDetailModal, { FatwaDetailData } from './FatwaDetailModal';
 
@@ -29,7 +30,7 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
   const [selectedFatwa, setSelectedFatwa] = useState<FatwaDetailData | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
 
-  // Data Fallback (Jika API CORS Blocked) - Ditambahkan Content Dummy untuk internal view
+  // Data Fallback (Jika API CORS Blocked)
   const fallbackFatwas: FatwaDetailData[] = [
     { 
         id: 1, 
@@ -60,32 +61,52 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     setUsingFallback(false);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-      const response = await fetch("https://mui.or.id/wp-json/wp/v2/posts?search=fatwa&per_page=20", {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+      // Menggunakan AllOrigins sebagai proxy untuk menghindari CORS issues saat fetch ke mui.or.id dari mobile web/PWA
+      const targetAPI = "https://mui.or.id/wp-json/wp/v2/posts?search=fatwa&per_page=20";
+      const proxyURL = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetAPI)}`;
+      
+      const response = await fetch(proxyURL);
 
       if (!response.ok) throw new Error("Network response was not ok");
       
       const data = await response.json();
       
       if (Array.isArray(data) && data.length > 0) {
-        const formatted: FatwaDetailData[] = data.map((item: any) => ({
-          id: item.id,
-          title: item.title.rendered.replace(/&#8217;/g, "'"),
-          nomor: "Info",
-          tahun: new Date(item.date).getFullYear().toString(),
-          tentang: item.excerpt.rendered.replace(/<[^>]+>/g, '').slice(0, 80) + "...",
-          content: item.content.rendered, // Ambil konten lengkap
-          url: item.link,
-          date_formatted: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-        }));
+        const formatted: FatwaDetailData[] = data.map((item: any) => {
+          const titleRaw = item.title.rendered
+              .replace(/&#8217;/g, "'")
+              .replace(/&#8220;/g, '"')
+              .replace(/&#8221;/g, '"')
+              .replace(/&nbsp;/g, ' ');
+          
+          // Coba ekstrak Nomor dan Tahun dari Judul (Format umum: Fatwa Nomor X Tahun Y)
+          let nomor = "Info";
+          let tahun = new Date(item.date).getFullYear().toString();
+          
+          // Regex flexibel untuk menangkap pola "Nomor 12 Tahun 2020" atau "No. 12/2020"
+          const regexNo = /(?:Nomor|No\.?)\s*([0-9a-zA-Z\-\/]+)/i;
+          const regexTahun = /(?:Tahun|Thn\.?)\s*(\d{4})/i;
+          
+          const matchNo = titleRaw.match(regexNo);
+          const matchTahun = titleRaw.match(regexTahun);
+          
+          if (matchNo) nomor = matchNo[1];
+          if (matchTahun) tahun = matchTahun[1];
+
+          return {
+            id: item.id,
+            title: titleRaw,
+            nomor: nomor,
+            tahun: tahun,
+            tentang: item.excerpt.rendered.replace(/<[^>]+>/g, '').slice(0, 100) + "...",
+            content: item.content.rendered,
+            url: item.link,
+            date_formatted: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+          };
+        });
         setFatwas(formatted);
       } else {
-        throw new Error("No data");
+        throw new Error("No data found");
       }
     } catch (err) {
       console.warn("Gagal mengambil data Fatwa Live (CORS/Network), menggunakan data statis.", err);
@@ -139,7 +160,12 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
             <h2 className="text-xl font-bold text-white tracking-tight">Kumpulan Fatwa</h2>
             <span className="text-[10px] font-black text-[#5eead4] uppercase tracking-[0.2em]">Majelis Ulama Indonesia</span>
           </div>
-          <div className="w-10"></div>
+          <button 
+            onClick={fetchFatwas} 
+            className="p-2.5 bg-white/10 rounded-2xl backdrop-blur-md text-white active:scale-90 transition-transform"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
@@ -168,9 +194,9 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
               >
                 <div className="flex items-start justify-between mb-3">
                    <div className="bg-indigo-50 text-indigo-700 text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                      Fatwa {item.tahun}
+                      {item.nomor !== 'Info' ? `Fatwa No. ${item.nomor}` : 'Fatwa MUI'}
                    </div>
-                   <span className="text-[10px] font-bold text-gray-400">{item.date_formatted}</span>
+                   <span className="text-[10px] font-bold text-gray-400">{item.tahun}</span>
                 </div>
                 
                 <h3 className="text-base font-bold text-gray-800 leading-tight mb-3 group-hover:text-indigo-700 transition-colors">
@@ -178,9 +204,7 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
                 </h3>
                 
                 <div className="bg-gray-50 rounded-xl p-3 mb-4">
-                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">
-                    {item.tentang}
-                  </p>
+                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2" dangerouslySetInnerHTML={{__html: item.tentang}} />
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -189,7 +213,6 @@ const FatwaPage: React.FC<FatwaPageProps> = ({ isOpen, onClose }) => {
                    >
                      <FileText size={14} className="mr-2" /> Buka Detail
                    </button>
-                   {/* Tombol sekunder hanya ikon */}
                    <div className="w-10 h-10 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center">
                       <ChevronRight size={18} />
                    </div>
