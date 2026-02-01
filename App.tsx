@@ -124,6 +124,22 @@ const App: React.FC = () => {
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  // --- FORCE PWA UPDATE LOGIC ---
+  useEffect(() => {
+    // 1. Unregister old service workers to clear cache
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      }).catch(err => {
+        // Suppress invalid state errors during unmount/reload
+        console.debug("SW cleanup:", err);
+      });
+    }
+  }, []);
+  // -----------------------------
+
   // --- Check Admin Mode on Mount ---
   useEffect(() => {
     // Check URL parameters for ?mode=admin
@@ -805,7 +821,7 @@ const App: React.FC = () => {
       <NewsDetailModal isOpen={isNewsDetailOpen} onClose={() => setIsNewsDetailOpen(false)} news={selectedNews} />
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />
       <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} notifications={notifications} onRemove={handleRemoveNotification} onMarkAllRead={handleMarkAllRead} />
-      <InfoModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} title="Profil Pengguna" message="Fitur Profil dan akun pengguna saat ini masih dalam tahap pengembangan. Nantikan pembaruan selanjutnya!" />
+      <InfoModal isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} title="Profil Pengguna" message="Fitur Profil dan akun pengguna saat ini masih dalam tahap pengembangan." />
     </div>
   );
 };
