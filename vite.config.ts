@@ -1,9 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import fs from 'fs';
-
-// Baca versi dari package.json
-const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
+import packageJson from './package.json';
 
 export default defineConfig({
   plugins: [react()],
