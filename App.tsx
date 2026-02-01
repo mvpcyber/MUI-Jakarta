@@ -40,9 +40,10 @@ import InstallPwaModal from './components/InstallPwaModal';
 import PermissionModal from './components/PermissionModal';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
+import RegistrationModal from './components/RegistrationModal';
 
 // FIREBASE IMPORTS
-import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot } from 'firebase/database';
+import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set } from 'firebase/database';
 import { db } from './firebaseConfig';
 
 // --- Global Constant Declaration ---
@@ -99,6 +100,7 @@ const App: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
   
   // PWA & Page States
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -106,7 +108,7 @@ const App: React.FC = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
   const [isQuranOpen, setIsQuranOpen] = useState(false);
-  const [isVideoOpen, setIsVideoOpen] = useState(false); // State untuk Video Page
+  const [isVideoOpen, setIsVideoOpen] = useState(false); 
   const [isHaditsOpen, setIsHaditsOpen] = useState(false);
   const [isKiblatOpen, setIsKiblatOpen] = useState(false);
   const [isHalalOpen, setIsHalalOpen] = useState(false);
@@ -133,7 +135,6 @@ const App: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  // Menggunakan timestamp saat app dibuka sebagai batas bawah notifikasi realtime
   const appLaunchTimeRef = useRef<number>(Date.now());
 
   // --- Check Admin Mode on Mount ---
@@ -158,6 +159,58 @@ const App: React.FC = () => {
     window.location.href = window.location.pathname;
   };
 
+  // --- CHECK REGISTRATION STATUS ---
+  useEffect(() => {
+    if (!isAdminMode && !showSplash) {
+       const storedUid = localStorage.getItem('mui_user_id');
+       if (!storedUid) {
+          setIsRegistrationOpen(true);
+       }
+    }
+  }, [isAdminMode, showSplash]);
+
+  const handleUserRegister = async (name: string, phone: string, coords: {lat: number, lng: number} | null) => {
+    if (!db) {
+       // Jika DB belum config, simpan lokal saja dulu
+       localStorage.setItem('mui_user_id', 'offline-user-' + Date.now());
+       localStorage.setItem('mui_user_name', name);
+       setIsRegistrationOpen(false);
+       return;
+    }
+
+    try {
+        const usersRef = ref(db, 'users');
+        const newUserRef = push(usersRef);
+        const uid = newUserRef.key;
+        
+        if (uid) {
+            const userData = {
+                id: uid,
+                name: name,
+                phoneNumber: phone,
+                platform: navigator.platform || 'Unknown',
+                userAgent: navigator.userAgent,
+                joinedAt: new Date().toISOString(),
+                lastActive: new Date().toISOString(),
+                location: locationName,
+                latitude: coords ? coords.lat : null,
+                longitude: coords ? coords.lng : null
+            };
+            
+            await set(newUserRef, userData);
+            localStorage.setItem('mui_user_id', uid);
+            localStorage.setItem('mui_user_name', name);
+            setIsRegistrationOpen(false);
+        }
+    } catch (e) {
+        console.error("Registration failed", e);
+        // Fallback agar user tetap bisa masuk
+        localStorage.setItem('mui_user_id', 'error-user-' + Date.now());
+        setIsRegistrationOpen(false);
+    }
+  };
+
+
   // --- Logic PWA Install ---
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase();
@@ -167,7 +220,6 @@ const App: React.FC = () => {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      console.log("Install prompt captured");
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -175,17 +227,18 @@ const App: React.FC = () => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
 
-    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash) {
+    // Tampilkan install modal hanya jika sudah registrasi
+    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash && !isRegistrationOpen) {
        const timer = setTimeout(() => {
           setIsInstallModalOpen(true);
-       }, 3000);
+       }, 5000);
        return () => clearTimeout(timer);
     }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [isAdminMode, showSplash]);
+  }, [isAdminMode, showSplash, isRegistrationOpen]);
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -212,19 +265,20 @@ const App: React.FC = () => {
     if ('Notification' in window && Notification.permission !== 'granted') {
       shouldShow = true;
     }
-    if (shouldShow && !isAdminMode && !isInstallModalOpen) {
+    // Tampilkan permission modal hanya jika registrasi selesai
+    if (shouldShow && !isAdminMode && !isInstallModalOpen && !isRegistrationOpen) {
       setIsPermissionModalOpen(true);
     }
   };
 
   useEffect(() => {
-    if (!showSplash && !isAdminMode && !isInstallModalOpen) {
+    if (!showSplash && !isAdminMode && !isInstallModalOpen && !isRegistrationOpen) {
       const timer = setTimeout(() => {
          checkInitialPermissions();
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [showSplash, isAdminMode, isInstallModalOpen]);
+  }, [showSplash, isAdminMode, isInstallModalOpen, isRegistrationOpen]);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -239,7 +293,6 @@ const App: React.FC = () => {
   const handleRemoveNotification = (id: number) => {
     const updated = notifications.filter(n => n.id !== id);
     setNotifications(updated);
-    // Kita tetap simpan state lokal di localStorage agar status 'read' terjaga di user
     localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
   };
 
@@ -251,7 +304,6 @@ const App: React.FC = () => {
 
   // --- Logic Push Notification Browser & In-App ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
-    // 1. Play Sound (Manual Audio API)
     try {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
       const playPromise = audio.play();
@@ -264,9 +316,7 @@ const App: React.FC = () => {
       console.warn("Audio play failed", e);
     }
 
-    // 2. Show System Notification (Status Bar)
     if ("Notification" in window && Notification.permission === "granted") {
-      
       const options = {
         body: body,
         icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
@@ -274,16 +324,14 @@ const App: React.FC = () => {
         vibrate: [200, 100, 200],
         tag: isFromAdmin ? `admin-${Date.now()}` : title,
         data: { url: window.location.href },
-        renotify: true, // Force sound/vibration even if tag exists
-        requireInteraction: true // Keep visible until user interaction
+        renotify: true, 
+        requireInteraction: true
       };
 
-      // Try Service Worker registration (Required for Status Bar on Android)
       if ('serviceWorker' in navigator) {
          navigator.serviceWorker.ready.then(registration => {
             registration.showNotification(title, options);
          }).catch(err => {
-            console.warn("SW notification failed, falling back", err);
             new Notification(title, options as any);
          });
       } else {
@@ -294,7 +342,6 @@ const App: React.FC = () => {
 
   // --- FIREBASE SYNC (USER RECEIVER) ---
   useEffect(() => {
-    // 1. Load Local State First (Read/Deleted status from previous session)
     const localStored = localStorage.getItem('mui_notifications_local');
     if (localStored) {
       try {
@@ -310,30 +357,18 @@ const App: React.FC = () => {
       return; 
     }
 
-    // 2. Listen to Firebase Realtime Database
-    // Menggunakan limitToLast(10) agar jika data di client kosong, user langsung dapat history terbaru
     const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(10));
-    
-    console.log("Connecting to Firebase notifications...");
-
     const unsubscribe = onChildAdded(notifRef, (snapshot: DataSnapshot) => {
        const data = snapshot.val();
        if (data && data.id) {
-          
           setNotifications(prev => {
-             // Cek duplikat agar tidak double
              const exists = prev.some(n => n.id === data.id);
              if (exists) return prev;
              
-             // LOGIKA NOTIFIKASI STATUS BAR:
-             // Hanya munculkan notifikasi popup jika pesan relatif baru (kurang dari 12 jam)
-             // Agar saat buka app pertama kali tidak spam notifikasi lama
              const notifTime = typeof data.id === 'number' ? data.id : parseInt(data.id);
              const now = Date.now();
              const isRecent = (now - notifTime) < (12 * 60 * 60 * 1000); 
 
-             // Trigger Status Bar Notification hanya jika pesan baru/segar dan bukan load initial history yang lama
-             // Kita gunakan appLaunchTimeRef untuk membedakan pesan yang masuk saat app berjalan vs history
              if (isRecent && notifTime > appLaunchTimeRef.current) {
                  setTimeout(() => {
                     sendNotification(data.title, data.desc, true);
@@ -346,12 +381,10 @@ const App: React.FC = () => {
                 title: data.title,
                 desc: data.desc,
                 time: data.time || new Date(data.id).toLocaleTimeString('id-ID'),
-                read: false // Default unread untuk pesan baru dari server
+                read: false 
              };
              
-             // Gabungkan dan urutkan (Terbaru di atas)
              const updated = [newNotifItem, ...prev].sort((a,b) => b.id - a.id).slice(0, 50); 
-             
              localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
              return updated;
           });
@@ -611,6 +644,13 @@ const App: React.FC = () => {
 
   return (
     <div className="w-full min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
+      
+      {/* --- REGISTRATION MODAL --- */}
+      <RegistrationModal 
+         isOpen={isRegistrationOpen} 
+         onSubmit={handleUserRegister}
+      />
+
       {/* Header Background */}
       <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
