@@ -40,7 +40,6 @@ import InstallPwaModal from './components/InstallPwaModal';
 import PermissionModal from './components/PermissionModal';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
-import RegistrationModal from './components/RegistrationModal';
 
 // FIREBASE IMPORTS
 import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set } from 'firebase/database';
@@ -100,7 +99,6 @@ const App: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
-  const [isRegistrationOpen, setIsRegistrationOpen] = useState(false);
   
   // PWA & Page States
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -159,56 +157,41 @@ const App: React.FC = () => {
     window.location.href = window.location.pathname;
   };
 
-  // --- CHECK REGISTRATION STATUS ---
+  // --- SILENT BACKGROUND TRACKING (Tanpa Form) ---
   useEffect(() => {
-    if (!isAdminMode && !showSplash) {
+    if (!isAdminMode && db && !showSplash) {
        const storedUid = localStorage.getItem('mui_user_id');
+       // Hanya register jika belum punya ID, agar tidak duplikat setiap buka app
        if (!storedUid) {
-          setIsRegistrationOpen(true);
+          try {
+             const usersRef = ref(db, 'users');
+             const newUserRef = push(usersRef);
+             const uid = newUserRef.key;
+             
+             if (uid) {
+                // Simpan data dasar perangkat
+                const userData = {
+                   id: uid,
+                   platform: navigator.platform || 'Unknown',
+                   userAgent: navigator.userAgent,
+                   joinedAt: new Date().toISOString(),
+                   lastActive: new Date().toISOString(),
+                   location: locationName,
+                   name: "Guest User", // Default
+                   phoneNumber: "-" // Default
+                };
+                
+                set(newUserRef, userData).then(() => {
+                   localStorage.setItem('mui_user_id', uid);
+                   console.log("Guest tracking active");
+                });
+             }
+          } catch (e) {
+             console.error("Tracking error", e);
+          }
        }
     }
-  }, [isAdminMode, showSplash]);
-
-  const handleUserRegister = async (name: string, phone: string, coords: {lat: number, lng: number} | null) => {
-    if (!db) {
-       // Jika DB belum config, simpan lokal saja dulu
-       localStorage.setItem('mui_user_id', 'offline-user-' + Date.now());
-       localStorage.setItem('mui_user_name', name);
-       setIsRegistrationOpen(false);
-       return;
-    }
-
-    try {
-        const usersRef = ref(db, 'users');
-        const newUserRef = push(usersRef);
-        const uid = newUserRef.key;
-        
-        if (uid) {
-            const userData = {
-                id: uid,
-                name: name,
-                phoneNumber: phone,
-                platform: navigator.platform || 'Unknown',
-                userAgent: navigator.userAgent,
-                joinedAt: new Date().toISOString(),
-                lastActive: new Date().toISOString(),
-                location: locationName,
-                latitude: coords ? coords.lat : null,
-                longitude: coords ? coords.lng : null
-            };
-            
-            await set(newUserRef, userData);
-            localStorage.setItem('mui_user_id', uid);
-            localStorage.setItem('mui_user_name', name);
-            setIsRegistrationOpen(false);
-        }
-    } catch (e) {
-        console.error("Registration failed", e);
-        // Fallback agar user tetap bisa masuk
-        localStorage.setItem('mui_user_id', 'error-user-' + Date.now());
-        setIsRegistrationOpen(false);
-    }
-  };
+  }, [isAdminMode, showSplash, locationName]); // Akan update saat lokasi terdeteksi (jika logic update ditambahkan, saat ini create once)
 
 
   // --- Logic PWA Install ---
@@ -227,8 +210,7 @@ const App: React.FC = () => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
 
-    // Tampilkan install modal hanya jika sudah registrasi
-    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash && !isRegistrationOpen) {
+    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash) {
        const timer = setTimeout(() => {
           setIsInstallModalOpen(true);
        }, 5000);
@@ -238,7 +220,7 @@ const App: React.FC = () => {
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [isAdminMode, showSplash, isRegistrationOpen]);
+  }, [isAdminMode, showSplash]);
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -265,20 +247,19 @@ const App: React.FC = () => {
     if ('Notification' in window && Notification.permission !== 'granted') {
       shouldShow = true;
     }
-    // Tampilkan permission modal hanya jika registrasi selesai
-    if (shouldShow && !isAdminMode && !isInstallModalOpen && !isRegistrationOpen) {
+    if (shouldShow && !isAdminMode && !isInstallModalOpen) {
       setIsPermissionModalOpen(true);
     }
   };
 
   useEffect(() => {
-    if (!showSplash && !isAdminMode && !isInstallModalOpen && !isRegistrationOpen) {
+    if (!showSplash && !isAdminMode && !isInstallModalOpen) {
       const timer = setTimeout(() => {
          checkInitialPermissions();
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [showSplash, isAdminMode, isInstallModalOpen, isRegistrationOpen]);
+  }, [showSplash, isAdminMode, isInstallModalOpen]);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -645,12 +626,6 @@ const App: React.FC = () => {
   return (
     <div className="w-full min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
       
-      {/* --- REGISTRATION MODAL --- */}
-      <RegistrationModal 
-         isOpen={isRegistrationOpen} 
-         onSubmit={handleUserRegister}
-      />
-
       {/* Header Background */}
       <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
