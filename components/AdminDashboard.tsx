@@ -9,7 +9,8 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'notifications' | 'settings'>('notifications');
+  // LOGIC: Default ke 'settings' jika belum dikonfigurasi, agar admin langsung melihat formnya
+  const [activeTab, setActiveTab] = useState<'notifications' | 'settings'>(!isConfigured ? 'settings' : 'notifications');
   
   // Notification State
   const [title, setTitle] = useState('');
@@ -54,6 +55,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     if (!db) {
        alert("Firebase belum dikonfigurasi. Silakan ke menu Pengaturan.");
+       setActiveTab('settings');
        return;
     }
 
@@ -125,7 +127,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       <div className="max-w-5xl mx-auto p-6">
         
         {/* Tab Navigation */}
-        <div className="flex space-x-4 mb-6 border-b border-gray-200">
+        <div className="flex space-x-2 mb-6 border-b border-gray-200">
             <button 
                 onClick={() => setActiveTab('notifications')}
                 className={`pb-3 px-4 text-sm font-bold flex items-center space-x-2 transition-all border-b-2 ${activeTab === 'notifications' ? 'border-[#00827f] text-[#00827f]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
@@ -139,19 +141,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             >
                 <Settings size={18} />
                 <span>Pengaturan Database</span>
+                {!dbStatus && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse ml-1"></span>}
             </button>
         </div>
 
-        {!dbStatus && (
-             <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold mb-6 flex items-start space-x-2 border border-red-100 animate-pulse">
+        {!dbStatus && activeTab !== 'settings' && (
+             <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold mb-6 flex items-start space-x-2 border border-red-100 cursor-pointer hover:bg-red-100 transition-colors" onClick={() => setActiveTab('settings')}>
                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
-                 <p>Database belum dikonfigurasi. Silakan masuk ke tab <strong>Pengaturan Database</strong> untuk menghubungkan aplikasi ke Firebase.</p>
+                 <p>Database belum dikonfigurasi. Klik disini untuk menghubungkan aplikasi ke Firebase.</p>
              </div>
         )}
 
         {/* CONTENT: Notifications */}
         {activeTab === 'notifications' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 fade-in">
                 {/* Form Section */}
                 <div>
                 <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100">
@@ -239,7 +242,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
         {/* CONTENT: Settings */}
         {activeTab === 'settings' && (
-             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+             <div className="fade-in">
                  <div className="bg-white rounded-[24px] p-8 shadow-sm border border-gray-100 max-w-2xl mx-auto">
                     <div className="flex items-center space-x-3 mb-6">
                         <div className="bg-teal-100 p-3 rounded-full text-teal-700">
@@ -266,31 +269,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">API Key</label>
-                                <input type="text" required value={configForm.apiKey} onChange={(e) => setConfigForm({...configForm, apiKey: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.apiKey} onChange={(e) => setConfigForm({...configForm, apiKey: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Auth Domain</label>
-                                <input type="text" required value={configForm.authDomain} onChange={(e) => setConfigForm({...configForm, authDomain: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.authDomain} onChange={(e) => setConfigForm({...configForm, authDomain: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                             <div className="md:col-span-2">
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Database URL (Realtime DB)</label>
-                                <input type="text" required value={configForm.databaseURL} onChange={(e) => setConfigForm({...configForm, databaseURL: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" placeholder="https://..." />
+                                <input type="text" required value={configForm.databaseURL} onChange={(e) => setConfigForm({...configForm, databaseURL: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" placeholder="https://..." />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Project ID</label>
-                                <input type="text" required value={configForm.projectId} onChange={(e) => setConfigForm({...configForm, projectId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.projectId} onChange={(e) => setConfigForm({...configForm, projectId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Storage Bucket</label>
-                                <input type="text" required value={configForm.storageBucket} onChange={(e) => setConfigForm({...configForm, storageBucket: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.storageBucket} onChange={(e) => setConfigForm({...configForm, storageBucket: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Messaging Sender ID</label>
-                                <input type="text" required value={configForm.messagingSenderId} onChange={(e) => setConfigForm({...configForm, messagingSenderId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.messagingSenderId} onChange={(e) => setConfigForm({...configForm, messagingSenderId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-2">App ID</label>
-                                <input type="text" required value={configForm.appId} onChange={(e) => setConfigForm({...configForm, appId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none" />
+                                <input type="text" required value={configForm.appId} onChange={(e) => setConfigForm({...configForm, appId: e.target.value})} className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-sm focus:border-[#00827f] outline-none font-mono" />
                             </div>
                         </div>
 
