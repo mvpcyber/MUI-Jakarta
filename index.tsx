@@ -1,4 +1,3 @@
-
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -14,13 +13,20 @@ interface ErrorBoundaryState {
 }
 
 // Simple Error Boundary Class
-// Fix: Use React.Component and property initialization to ensure TypeScript correctly identifies props and state via inheritance
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  // Initialize state as a class property for better type inference and to resolve property missing errors
-  public state: ErrorBoundaryState = {
-    hasError: false,
-    error: null
-  };
+// Fix: Use imported Component directly and explicitly declare state and props to ensure visibility to the TypeScript compiler.
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  // Explicitly declaring state and props to resolve "Property does not exist on type" errors.
+  public state: ErrorBoundaryState;
+  public props: ErrorBoundaryProps;
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    // Initialize state within the constructor.
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -31,7 +37,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   render() {
-    // Property 'state' is correctly recognized from React.Component generic parameters
+    // Fix: Access state properties from the class instance which are now properly recognized.
     if (this.state.hasError) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-6 text-center">
@@ -57,7 +63,7 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
       );
     }
 
-    // Property 'props' is correctly recognized from React.Component generic parameters
+    // Fix: Access props.children from the class instance which is now properly recognized.
     return this.props.children;
   }
 }

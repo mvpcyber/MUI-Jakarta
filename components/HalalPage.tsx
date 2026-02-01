@@ -12,8 +12,10 @@ import {
   Calendar,
   Hash,
   AlertCircle,
-  X,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  Database
 } from 'lucide-react';
 
 interface HalalProduct {
@@ -32,62 +34,89 @@ interface HalalPageProps {
 const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'lokal' | 'luar'>('lokal');
   const [productName, setProductName] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [certNumber, setCertNumber] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<HalalProduct[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!productName.trim() && !businessName.trim() && !certNumber.trim()) return;
+  const performSearch = async (queryText: string, page: number) => {
+    if (!queryText.trim()) return;
 
     setLoading(true);
     setHasSearched(true);
     setError(null);
-    setProducts([]);
     
     try {
-      // Endpoint Resmi BPJPH
+      // Endpoint BPJPH mengembalikan HTML, bukan JSON langsung
       const baseUrl = "https://bpjph.halal.go.id/sertifikat-halal/sertifikat";
-      const params = new URLSearchParams();
-      if (productName) params.append('nama_produk', productName.trim());
-      if (businessName) params.append('nama_perusahaan', businessName.trim());
-      if (certNumber) params.append('nomor_sertifikat', certNumber.trim());
-
-      const targetUrl = `${baseUrl}?${params.toString()}`;
+      const targetUrl = `${baseUrl}?nama_produk=${encodeURIComponent(queryText.trim())}&page=${page}`;
       
-      // Menggunakan Proxy AllOrigins untuk bypass CORS di environment Web/PWA
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+      // Gunakan /get untuk mendapatkan konten sebagai string di dalam JSON wrapper (menghindari error Unexpected token <)
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
       
       const response = await fetch(proxyUrl);
-      if (!response.ok) throw new Error("Gagal terhubung ke server BPJPH");
+      if (!response.ok) throw new Error("Gagal terhubung ke proxy server");
 
-      const result = await response.json();
+      const wrapper = await response.json();
+      const htmlContent = wrapper.contents;
 
-      // Memetakan response dari BPJPH (menyesuaikan struktur data Sihalal)
-      // Biasanya Sihalal mengembalikan array 'data'
-      if (result && result.data && Array.isArray(result.data)) {
-        const formatted: HalalProduct[] = result.data.map((item: any) => ({
-          nama_produk: item.nama_produk || "Nama tidak tersedia",
-          nama_perusahaan: item.nama_perusahaan || "Perusahaan tidak tersedia",
-          nomor_sertifikat: item.nomor_sertifikat || "-",
-          tgl_berlaku: item.tgl_berlaku || "-",
-          kategori: item.jenis_produk || "Umum"
-        }));
-        setProducts(formatted);
-      } else {
-        // Jika data kosong, kita cek hasil pencarian manual di mockup jika ini demo
-        // Namun untuk produksi, kita biarkan kosong.
-        setProducts([]);
+      // Gunakan DOMParser untuk membedah HTML dari BPJPH
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, 'text/html');
+      
+      // Mencari baris data di tabel atau elemen list (Struktur BPJPH biasanya dalam tabel)
+      const rows = doc.querySelectorAll('table tbody tr');
+      const results: HalalProduct[] = [];
+
+      if (rows && rows.length > 0) {
+        rows.forEach((row) => {
+          const cols = row.querySelectorAll('td');
+          if (cols.length >= 4) {
+            results.push({
+              nama_produk: cols[1]?.textContent?.trim() || "N/A",
+              nama_perusahaan: cols[2]?.textContent?.trim() || "N/A",
+              nomor_sertifikat: cols[3]?.textContent?.trim() || "N/A",
+              tgl_berlaku: cols[4]?.textContent?.trim() || "N/A",
+              kategori: "Produk Terdaftar"
+            });
+          }
+        });
       }
+
+      setProducts(results);
+      
+      // Jika hasil kosong tapi tidak ada error, mungkin struktur HTML berbeda atau memang tidak ada data
+      if (results.length === 0 && htmlContent.toLowerCase().includes('tidak ditemukan')) {
+          setProducts([]);
+      }
+      
     } catch (err) {
-      console.error("Halal Search Error:", err);
-      setError("Server BPJPH sedang sibuk atau ada kendala koneksi. Silakan coba lagi nanti.");
+      console.error("Halal Search Scraping Error:", err);
+      setError("Sistem BPJPH sedang sibuk atau struktur data tidak terbaca. Silakan gunakan link cek manual.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    performSearch(productName, 1);
+  };
+
+  const handleNextPage = () => {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    performSearch(productName, nextPage);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      const prevPage = currentPage - 1;
+      setCurrentPage(prevPage);
+      performSearch(productName, prevPage);
     }
   };
 
@@ -111,7 +140,6 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
 
       {/* BPJPH Layout Search Form */}
       <div className="bg-white px-6 py-8 shadow-sm">
-        {/* Tab Navigation */}
         <div className="flex items-center space-x-6 mb-8 overflow-x-auto no-scrollbar border-b border-gray-100">
           <button 
             onClick={() => setActiveTab('lokal')}
@@ -129,38 +157,21 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Input Fields Grid */}
-        <form onSubmit={handleSearch} className="space-y-4">
-          <div className="space-y-3">
-            <div className="relative">
-              <input 
-                type="text" 
-                placeholder="Nama Produk (Contoh: Indomie, Wardah)"
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                className="w-full bg-white border border-teal-600/20 rounded-lg py-3 px-4 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#00a896] transition-all shadow-sm"
-              />
-            </div>
+        <form onSubmit={handleSearchSubmit} className="space-y-4">
+          <div className="relative">
             <input 
               type="text" 
-              placeholder="Nama Perusahaan / Pelaku Usaha"
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              className="w-full bg-white border border-teal-600/20 rounded-lg py-3 px-4 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#00a896] transition-all shadow-sm"
-            />
-            <input 
-              type="text" 
-              placeholder="Nomor Sertifikat Halal"
-              value={certNumber}
-              onChange={(e) => setCertNumber(e.target.value)}
-              className="w-full bg-white border border-teal-600/20 rounded-lg py-3 px-4 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-[#00a896] transition-all shadow-sm"
+              placeholder="Masukkan Nama Produk (Contoh: Indomie, Wardah)"
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              className="w-full bg-white border border-teal-600/20 rounded-lg py-4 px-4 text-sm text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#00a896] transition-all shadow-sm"
             />
           </div>
           
           <button 
             type="submit" 
-            disabled={loading}
-            className="w-full bg-[#00a896] text-white py-3.5 rounded-lg font-bold text-sm uppercase tracking-widest shadow-lg shadow-teal-50 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 disabled:opacity-70"
+            disabled={loading || !productName.trim()}
+            className="w-full bg-[#00a896] text-white py-4 rounded-lg font-bold text-sm uppercase tracking-widest shadow-lg shadow-teal-50 active:scale-[0.98] transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
             <span>Cari di Database BPJPH</span>
@@ -175,14 +186,24 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
             <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-4 border border-red-100">
               <AlertCircle size={32} />
             </div>
-            <h3 className="text-sm font-bold text-gray-800 mb-2">Terjadi Kendala Sinkronisasi</h3>
-            <p className="text-xs text-gray-500 mb-6">{error}</p>
-            <button 
-              onClick={handleSearch}
-              className="px-6 py-2.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold flex items-center"
-            >
-              <RefreshCw size={14} className="mr-2" /> COBA LAGI
-            </button>
+            <h3 className="text-sm font-bold text-gray-800 mb-2">Kendala Sinkronisasi</h3>
+            <p className="text-[11px] text-gray-500 mb-6 leading-relaxed">
+              Kami kesulitan mengambil data otomatis. Anda bisa mencoba lagi atau menggunakan tautan cek manual di bawah ini.
+            </p>
+            <div className="flex flex-col w-full space-y-3">
+               <button 
+                 onClick={() => performSearch(productName, currentPage)}
+                 className="w-full py-3 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold flex items-center justify-center"
+               >
+                 <RefreshCw size={14} className="mr-2" /> COBA LAGI
+               </button>
+               <button 
+                 onClick={openOfficialSihalal}
+                 className="w-full py-3 bg-[#00a896] text-white rounded-xl text-xs font-bold flex items-center justify-center"
+               >
+                 <ExternalLink size={14} className="mr-2" /> PORTAL SIHALAL RESMI
+               </button>
+            </div>
           </div>
         ) : !hasSearched ? (
           <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -191,18 +212,19 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
             </div>
             <h3 className="text-base font-bold text-gray-800 mb-1">Cek Produk Halal</h3>
             <p className="text-xs text-gray-500 max-w-[240px] leading-relaxed">
-              Data disinkronkan langsung dengan BPJPH (Badan Penyelenggara Jaminan Produk Halal).
+              Mencari data real-time pada sistem informasi sertifikasi halal BPJPH.
             </p>
           </div>
         ) : loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="animate-spin text-[#00a896] mb-3" size={32} />
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sinkronisasi Database BPJPH...</p>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Membaca Data BPJPH...</p>
           </div>
         ) : products.length > 0 ? (
           <div className="space-y-4 pb-20">
             <div className="flex justify-between items-center px-1 mb-2">
-               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Hasil Sinkronisasi ({products.length})</span>
+               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Halaman {currentPage}</span>
+               <span className="text-[10px] font-bold text-[#00a896] uppercase bg-teal-50 px-2 py-0.5 rounded-md">Live Data</span>
             </div>
             {products.map((product, idx) => (
               <div key={idx} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm relative group active:scale-[0.99] transition-all">
@@ -245,7 +267,7 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
 
                 <div className="mt-5 pt-4 border-t border-gray-50 flex space-x-2">
                    <button 
-                     onClick={() => window.open(`https://info.halal.go.id/detail-produk?id=${product.nomor_sertifikat}`, '_blank')}
+                     onClick={() => window.open(`https://info.halal.go.id/search-produk/`, '_blank')}
                      className="flex-1 py-2.5 bg-gray-50 text-gray-600 rounded-xl text-xs font-bold flex items-center justify-center hover:bg-gray-100 transition-colors"
                    >
                       Cek Detail <ExternalLink size={12} className="ml-1.5" />
@@ -256,6 +278,24 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
                 </div>
               </div>
             ))}
+
+            <div className="flex items-center justify-between pt-4">
+               <button 
+                 onClick={handlePrevPage}
+                 disabled={currentPage === 1}
+                 className="flex items-center space-x-2 px-4 py-2 bg-white rounded-lg border border-gray-100 text-xs font-bold text-gray-600 disabled:opacity-30"
+               >
+                 <ChevronLeft size={16} />
+                 <span>Kembali</span>
+               </button>
+               <button 
+                 onClick={handleNextPage}
+                 className="flex items-center space-x-2 px-4 py-2 bg-white rounded-lg border border-gray-100 text-xs font-bold text-gray-600"
+               >
+                 <span>Berikutnya</span>
+                 <ChevronRight size={16} />
+               </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center px-6">
@@ -264,11 +304,11 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
             </div>
             <h3 className="text-base font-bold text-gray-800 mb-1">Data Tidak Ditemukan</h3>
             <p className="text-xs text-gray-500 leading-relaxed mb-6">
-              Pastikan nama produk atau nomor sertifikat yang Anda masukkan sudah benar sesuai database BPJPH.
+              Tidak ditemukan data produk "{productName}" pada database publik BPJPH.
             </p>
             <button 
               onClick={openOfficialSihalal}
-              className="w-full py-3.5 bg-[#00a896] text-white rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-teal-100"
+              className="w-full py-4 bg-[#00a896] text-white rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-teal-100"
             >
               Cari di Portal Sihalal (Web)
             </button>
@@ -276,12 +316,11 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
         )}
       </div>
 
-      {/* Footer Disclaimer */}
       <div className="p-6 bg-white border-t border-gray-50">
          <div className="flex items-center space-x-3 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-            <Info size={16} className="text-blue-500 shrink-0" />
+            <Database size={16} className="text-blue-500 shrink-0" />
             <p className="text-[10px] text-blue-800 font-bold leading-relaxed">
-              Aplikasi MUI Jakarta menampilkan data real-time dari database sertifikasi halal nasional yang dikelola oleh BPJPH Kemenag RI.
+              Data disinkronkan langsung dari portal resmi BPJPH Kemenag RI (Sihalal).
             </p>
          </div>
       </div>

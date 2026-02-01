@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   MapPin, 
   Home, 
-  BookOpen, 
   FileText, 
   Calendar as CalendarIcon, 
   Bell, 
@@ -11,14 +11,8 @@ import {
   ArrowRight,
   User,
   Clock,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
   CheckCheck,
-  Navigation,
-  BellRing,
-  Star,
-  Moon
+  Copy
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -42,12 +36,10 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 // FIREBASE IMPORTS
-import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set, update, onValue } from 'firebase/database';
+import { ref, onChildAdded, limitToLast, query, push, set, update } from 'firebase/database';
 import { db } from './firebaseConfig';
 
-// --- Global Constant Declaration ---
 declare const __APP_VERSION__: string;
-// -------------------------------------
 
 export interface PrayerSchedule {
   subuh: string;
@@ -116,10 +108,7 @@ const App: React.FC = () => {
   const [prayerSchedule, setPrayerSchedule] = useState<PrayerSchedule | null>(null);
 
   const sentNotificationsRef = useRef<Set<string>>(new Set());
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
-
   const [homeNews, setHomeNews] = useState<NewsDetailData[]>([]);
-  const [newsPage, setNewsPage] = useState(1);
   const [newsLoading, setNewsLoading] = useState(false);
 
   const [dailyQuote, setDailyQuote] = useState<{content: string, source: string} | null>(null);
@@ -128,7 +117,6 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const appLaunchTimeRef = useRef<number>(Date.now());
 
-  // --- AUTOMATIC UPDATE CHECK ---
   useEffect(() => {
     const checkVersion = async () => {
       const storedVersion = localStorage.getItem('mui_app_version');
@@ -137,12 +125,6 @@ const App: React.FC = () => {
           try {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
-          } catch (e) {}
-        }
-        if ('serviceWorker' in navigator) {
-          try {
-            const registrations = await navigator.serviceWorker.getRegistrations();
-            for (const registration of registrations) { await registration.unregister(); }
           } catch (e) {}
         }
         localStorage.setItem('mui_app_version', appVersion);
@@ -154,7 +136,6 @@ const App: React.FC = () => {
     checkVersion();
   }, [appVersion]);
 
-  // --- ADMIN MODE CHECK ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'admin') {
@@ -172,7 +153,6 @@ const App: React.FC = () => {
     window.location.href = window.location.pathname;
   };
 
-  // --- SILENT REGISTRATION & TRACKING ---
   useEffect(() => {
     if (!isAdminMode && db && !showSplash) {
        const logActivity = async () => {
@@ -205,7 +185,6 @@ const App: React.FC = () => {
     }
   }, [isAdminMode, showSplash, locationName, userCoords]);
 
-  // --- PWA LOGIC ---
   useEffect(() => {
     const ios = /iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
     setIsIOS(ios);
@@ -228,37 +207,20 @@ const App: React.FC = () => {
     else alert("Gunakan menu browser untuk Install.");
   };
 
-  // --- BROADCAST RECEIVER & RECEIPT SYSTEM ---
   useEffect(() => {
     if (!db || isAdminMode) return;
-    
     const userId = localStorage.getItem('mui_user_id');
     const broadcastsRef = ref(db, 'notifications');
-    
-    // Gunakan onChildAdded untuk memantau notifikasi baru secara real-time
     const unsubscribe = onChildAdded(query(broadcastsRef, limitToLast(1)), (snapshot) => {
       const data = snapshot.val();
       const firebaseKey = snapshot.key;
-      
       if (data && firebaseKey && userId) {
-        // Hanya proses jika notifikasi lebih baru dari saat aplikasi dibuka
         if (data.id > appLaunchTimeRef.current) {
-          // 1. KIRIM RECEIPT KE ADMIN (SINYAL TERIMA)
-          update(ref(db, `notifications/${firebaseKey}/receipts`), {
-            [userId]: new Date().toISOString()
-          });
-
-          // 2. TAMPILKAN NOTIFIKASI
+          update(ref(db, `notifications/${firebaseKey}/receipts`), { [userId]: new Date().toISOString() });
           sendNotification(data.title, data.desc, true);
-          
-          // 3. UPDATE UI LOKAL
           const newNotifItem: NotificationItem = {
-            id: data.id,
-            type: 'news',
-            title: data.title,
-            desc: data.desc,
-            time: data.time || new Date().toLocaleTimeString('id-ID'),
-            read: false 
+            id: data.id, type: 'news', title: data.title, desc: data.desc,
+            time: data.time || new Date().toLocaleTimeString('id-ID'), read: false 
           };
           setNotifications(prev => {
             const updated = [newNotifItem, ...prev].sort((a,b) => b.id - a.id).slice(0, 50);
@@ -268,24 +230,13 @@ const App: React.FC = () => {
         }
       }
     });
-
     return () => unsubscribe();
   }, [isAdminMode]);
 
-  // --- NOTIFICATION & PRAYER LOGIC ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
-    try {
-      new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => {});
-    } catch (e) {}
-
+    try { new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => {}); } catch (e) {}
     if ("Notification" in window && Notification.permission === "granted") {
-      const options = {
-        body: body,
-        icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-        vibrate: [200, 100, 200],
-        requireInteraction: true
-      };
-      new Notification(title, options as any);
+      new Notification(title, { body: body, icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png", vibrate: [200, 100, 200], requireInteraction: true } as any);
     }
   }, []);
 
@@ -321,7 +272,6 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, [checkPrayerNotifications, isAdminMode]);
 
-  // --- API FETCH NEWS ---
   const fetchHomeNews = useCallback(async (page: number) => {
     setNewsLoading(true);
     try {
@@ -345,12 +295,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!showSplash && !isAdminMode) {
-      fetchHomeNews(newsPage);
+      fetchHomeNews(1);
       setDailyQuote(ISLAMIC_QUOTES[Math.floor(Math.random() * ISLAMIC_QUOTES.length)]);
     }
-  }, [showSplash, newsPage, fetchHomeNews, isAdminMode]);
+  }, [showSplash, fetchHomeNews, isAdminMode]);
 
-  // --- LOCATION & PRAYER FETCH ---
   const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, city: string) => {
     try {
       const response = await fetch(`https://api.aladhan.com/v1/timings/${Math.floor(Date.now()/1000)}?latitude=${lat}&longitude=${lng}&method=20`);
@@ -427,6 +376,13 @@ const App: React.FC = () => {
     else if (menuId === 'install') handleInstallApp();
   };
 
+  const closeAllPages = () => {
+    setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
+    setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false);
+    setIsNewsOpen(false); setIsMosqueOpen(false); setIsCalendarOpen(false);
+    setIsMenuOpen(false); setIsVideoOpen(false); setIsProfileOpen(false);
+  };
+
   if (isAdminMode) {
     if (!isAdminAuthenticated) return <AdminLogin onLogin={handleAdminLogin} />;
     return <AdminDashboard onLogout={handleAdminLogout} />;
@@ -453,23 +409,73 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
-      <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-32">
+
+      {/* Main Home Content */}
+      <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-40">
         <div className="grid grid-cols-4 md:grid-cols-8 gap-x-3 gap-y-8 pb-8">{QUICK_MENUS.map((menu) => (<button key={menu.id} onClick={() => handleQuickNavigation(menu.id)} className="flex flex-col items-center group active:scale-95 transition-all duration-200"><div className={`w-[62px] h-[62px] rounded-2xl flex items-center justify-center ${menu.color} shadow-sm border border-gray-100/30 mb-2 group-hover:shadow-md transition-shadow`}>{menu.icon}</div><span className="text-[10px] font-bold text-gray-500 text-center leading-tight tracking-tight uppercase px-1">{menu.label}</span></button>))}</div>
         <div className="bg-gradient-to-br from-[#00a896] to-emerald-700 rounded-[32px] p-6 shadow-xl shadow-teal-900/10 mb-6 relative overflow-hidden group"><div className="relative z-10 flex items-center justify-between"><div className="flex flex-col"><div className="flex items-center space-x-2 mb-1"><span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-widest border border-white/10">1446 H</span></div><h3 className="text-white text-lg font-medium leading-tight mb-2">Menuju Bulan Suci <br/><span className="font-black text-2xl">Ramadhan</span></h3><div className="flex items-baseline space-x-1.5 mt-1"><span className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">{daysToRamadan}</span><span className="text-sm font-bold text-teal-100">Hari Lagi</span></div></div><div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/10 shadow-lg relative shrink-0"><img src="https://m.muijakarta.or.id/img/puasa.png" alt="Ramadhan" className="w-16 h-16 object-contain drop-shadow-md relative z-10" /></div></div></div>
         <div onClick={() => { if (dailyQuote) { navigator.clipboard.writeText(`"${dailyQuote.content}"\n\n(${dailyQuote.source})\n\nVia Aplikasi MUI Jakarta`); setIsCopied(true); setTimeout(() => setIsCopied(false), 2000); } }} className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-4 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl transition-all active:scale-[0.98]"><div className="w-full flex justify-between items-center mb-4 relative z-10"><div className="flex items-center space-x-2"><div className="h-6 w-1 bg-orange-500 rounded-full"></div><h3 className="font-bold text-gray-800 text-lg leading-none">Quote Hari Ini</h3></div><div className={`p-2 rounded-full transition-colors ${isCopied ? 'bg-green-100 text-green-600' : 'bg-gray-50 text-gray-400'}`}>{isCopied ? <CheckCheck size={16} /> : <Copy size={16} />}</div></div><p className="text-base text-gray-700 font-medium italic leading-relaxed text-center relative z-10">"{dailyQuote?.content}"</p><div className="mt-4 inline-block relative z-10"><span className="text-[10px] font-black text-[#00a896] uppercase tracking-widest bg-teal-50 px-3 py-1.5 rounded-full border border-teal-100">{dailyQuote?.source}</span></div></div>
         <div className="pb-10"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-black text-gray-800 border-l-4 border-[#00a896] pl-3">Info Terkini</h2><button onClick={() => setIsNewsOpen(true)} className="text-[#00a896] text-xs font-bold flex items-center active:opacity-70">Lihat Semua <ArrowRight size={14} className="ml-1" /></button></div>
           <div className="space-y-4">
-            {newsLoading && homeNews.length === 0 ? <div className="flex flex-col items-center py-12 bg-white rounded-[32px] border border-gray-50"><Loader2 className="animate-spin text-[#00a896] mb-2" size={24} /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Memuat Berita...</p></div> : 
+            {newsLoading && homeNews.length === 0 ? <div className="flex flex-col items-center py-12 bg-white rounded-[32px] border border-gray-100"><Loader2 className="animate-spin text-[#00a896] mb-2" size={24} /><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Memuat Berita...</p></div> : 
               homeNews.map((item) => (<div key={item.id} onClick={() => { setSelectedNews(item); setIsNewsDetailOpen(true); }} className="flex flex-col bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all cursor-pointer overflow-hidden"><div className="w-full h-40 rounded-[16px] overflow-hidden mb-3 relative bg-gray-100"><img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" /></div><h3 className="text-sm font-bold text-gray-800 leading-snug line-clamp-2 px-1 mb-1" dangerouslySetInnerHTML={{ __html: item.title }} /></div>))
             }
           </div>
         </div>
       </div>
-      <nav className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-lg flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
-        <div className="flex-1 flex justify-between pr-4 pb-1"><button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Video</span></button><button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><FileText size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Fatwa</span></button></div>
-        <div className="relative -top-6 px-2 flex flex-col items-center"><button onClick={() => { setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false); setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false); setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false); setIsVideoOpen(false); }} className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"><Home size={24} /></button><span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span><span className="text-[8px] font-medium text-gray-400 -mt-0.5">Ver {appVersion}</span></div>
-        <div className="flex-1 flex justify-between pl-4 pb-1"><button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><CalendarIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Kalender</span></button><button onClick={() => setIsProfileOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><User size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Profil</span></button></div>
-      </nav>
+
+      {/* FIXED BOTTOM NAVIGATION BAR - RESPONSIVE OPTIMIZATION */}
+      <div className="fixed bottom-0 left-0 right-0 z-[200] px-4 pb-[env(safe-area-inset-bottom,20px)]">
+        <nav className="max-w-md mx-auto bg-white/95 backdrop-blur-xl border border-gray-200/50 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] grid grid-cols-5 items-end h-[76px] px-2 rounded-[32px] mb-4 relative">
+          
+          {/* Left Side Buttons */}
+          <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
+            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+              <img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" />
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Video</span>
+          </button>
+          
+          <button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
+            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+              <FileText size={22} className="opacity-60 group-hover:opacity-100" />
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Fatwa</span>
+          </button>
+
+          {/* Center Raised Button Slot */}
+          <div className="relative flex flex-col items-center h-full">
+            <div className="absolute -top-8 w-16 h-16 bg-[#f8fafc] rounded-full flex items-center justify-center">
+              <button 
+                onClick={closeAllPages} 
+                className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-white active:scale-90 transition-transform"
+              >
+                <Home size={26} fill="white" />
+              </button>
+            </div>
+            <div className="mt-auto pb-3 flex flex-col items-center">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896]">Beranda</span>
+              <span className="text-[7px] font-medium text-gray-400 leading-none">V {appVersion}</span>
+            </div>
+          </div>
+
+          {/* Right Side Buttons */}
+          <button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
+            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+              <CalendarIcon size={22} className="opacity-60 group-hover:opacity-100" />
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Kalender</span>
+          </button>
+          
+          <button onClick={() => setIsProfileOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
+            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+              <User size={22} className="opacity-60 group-hover:opacity-100" />
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Profil</span>
+          </button>
+        </nav>
+      </div>
+
       <InstallPwaModal isOpen={isInstallModalOpen} onClose={() => setIsInstallModalOpen(false)} onInstall={handleInstallApp} isIOS={isIOS} />
       <PermissionModal isOpen={isPermissionModalOpen} onClose={() => setIsPermissionModalOpen(false)} onPermissionsGranted={() => setIsPermissionModalOpen(false)} />
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onNavigate={handleQuickNavigation} />
