@@ -98,6 +98,11 @@ const App: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
   // Page States
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
   const [isQuranOpen, setIsQuranOpen] = useState(false);
@@ -136,16 +141,60 @@ const App: React.FC = () => {
   // Logic Notifikasi
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  // Function to check if we should show the permission modal
+  // --- Logic PWA Install ---
+  useEffect(() => {
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(ios);
+
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+      const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
+      if (!isStandalone && !hasDismissed) {
+         setTimeout(() => setIsInstallModalOpen(true), 3000);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    if (ios) {
+      const isStandalone = (window.navigator as any).standalone;
+      const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
+      if (!isStandalone && !hasDismissed) {
+         setTimeout(() => setIsInstallModalOpen(true), 3000);
+      }
+    }
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setIsInstallModalOpen(false);
+      }
+    } else if (isIOS) {
+       setIsInstallModalOpen(true);
+    } else {
+       setIsInstallModalOpen(true);
+    }
+  };
+  
+  const handleCloseInstallModal = () => {
+    setIsInstallModalOpen(false);
+    sessionStorage.setItem('pwa_install_dismissed', 'true');
+  };
+
   const checkInitialPermissions = async () => {
     let shouldShow = false;
-
-    // 1. Check Notification
     if ('Notification' in window && Notification.permission !== 'granted') {
       shouldShow = true;
     }
-
-    // 2. Check Geolocation
     if (navigator.permissions && navigator.permissions.query) {
       try {
         const geoResult = await navigator.permissions.query({ name: 'geolocation' });
@@ -153,11 +202,9 @@ const App: React.FC = () => {
           shouldShow = true;
         }
       } catch (e) {
-        // If query fails, assume prompt needed
         shouldShow = true;
       }
     }
-    
     if (shouldShow) {
       setIsPermissionModalOpen(true);
     }
@@ -165,7 +212,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (!showSplash) {
-      // Delay slightly to allow fade out
       const timer = setTimeout(() => {
          checkInitialPermissions();
       }, 500);
@@ -173,15 +219,13 @@ const App: React.FC = () => {
     }
   }, [showSplash]);
 
-  // Sync state with modal changes
   useEffect(() => {
     if ('Notification' in window) {
       setNotificationPermission(Notification.permission);
     }
-  }, [isPermissionModalOpen]); // Re-check when modal closes/changes
+  }, [isPermissionModalOpen]); 
 
   const handleRequestPermission = () => {
-    // Legacy function for the card button, reused or redirects to modal
     setIsPermissionModalOpen(true);
   };
 
@@ -193,40 +237,46 @@ const App: React.FC = () => {
     setNotifications(prev => prev.map(n => ({...n, read: true})));
   };
 
-  // --- Logic Push Notification Browser ---
-  const sendBrowserNotification = (title: string, body: string) => {
-    if (!("Notification" in window)) return;
+  // --- Logic Push Notification Browser & In-App ---
+  // Gunakan useCallback agar fungsi ini stabil
+  const sendNotification = useCallback((title: string, body: string) => {
+    // 1. Selalu tambahkan ke In-App Notification (Lonceng)
+    const newNotif: NotificationItem = {
+      id: Date.now(),
+      type: 'prayer',
+      title: title,
+      desc: body,
+      time: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      read: false
+    };
+    
+    setNotifications(prev => [newNotif, ...prev]);
 
-    if (Notification.permission === "granted") {
-      new Notification(title, {
-        body: body,
-        icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-        badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-        vibrate: [200, 100, 200]
-      } as any);
-      
-      // Tambahkan ke in-app notification list juga
-      const newNotif: NotificationItem = {
-        id: Date.now(),
-        type: 'prayer',
-        title: title,
-        desc: body,
-        time: 'Baru saja',
-        read: false
-      };
-      setNotifications(prev => [newNotif, ...prev]);
-
+    // 2. Kirim Push Notification Browser (Hanya jika diizinkan)
+    if ("Notification" in window && Notification.permission === "granted") {
+      try {
+        new Notification(title, {
+          body: body,
+          icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+          badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+          vibrate: [200, 100, 200],
+          tag: title // Mencegah duplikasi visual di tray Android
+        } as any);
+      } catch (e) {
+        console.warn("Browser notification failed", e);
+      }
     }
-  };
+  }, []);
 
-  const checkPrayerNotifications = () => {
+  // Logika Pengecekan Waktu Sholat
+  const checkPrayerNotifications = useCallback(() => {
     if (!prayerSchedule) return;
 
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
     
-    // Reset notification tracker at midnight
+    // Reset tracker saat ganti hari (jam 00:00)
     if (currentHour === 0 && currentMinute === 0) {
       sentNotificationsRef.current.clear();
     }
@@ -241,17 +291,21 @@ const App: React.FC = () => {
 
     prayerTimesList.forEach(prayer => {
       const [pHour, pMinute] = prayer.time.split(':').map(Number);
+      
+      // Buat objek date untuk waktu sholat HARI INI
       const prayerDate = new Date();
       prayerDate.setHours(pHour, pMinute, 0, 0);
       
       const diffMs = prayerDate.getTime() - now.getTime();
-      const diffMinutes = Math.floor(diffMs / 60000);
+      const diffMinutes = Math.floor(diffMs / 60000); // 10.9 menit menjadi 10 menit
 
-      // Check 1: 10 Menit Sebelum (Antara 9-10 menit)
+      const dateKey = now.getDate(); // Key harian agar tidak spam
+
+      // Check 1: 10 Menit Sebelum (Range 10 s.d 10.9 menit)
       if (diffMinutes === 10) {
-         const key = `${prayer.name}-10min-${now.getDate()}`;
+         const key = `${prayer.name}-10min-${dateKey}`;
          if (!sentNotificationsRef.current.has(key)) {
-            sendBrowserNotification(
+            sendNotification(
               `Menuju ${prayer.name}`, 
               `10 Menit lagi menuju waktu sholat ${prayer.name} untuk wilayah ${locationName}.`
             );
@@ -259,11 +313,12 @@ const App: React.FC = () => {
          }
       }
 
-      // Check 2: Tepat Waktu (Antara 0-1 menit)
+      // Check 2: Tepat Waktu (Range -1 s.d 0 menit)
+      // Gunakan currentHour/Minute untuk akurasi jam dinding
       if (currentHour === pHour && currentMinute === pMinute) {
-         const key = `${prayer.name}-now-${now.getDate()}`;
+         const key = `${prayer.name}-now-${dateKey}`;
          if (!sentNotificationsRef.current.has(key)) {
-            sendBrowserNotification(
+            sendNotification(
               `Waktu ${prayer.name} Tiba`, 
               `Telah masuk waktu sholat ${prayer.name} untuk wilayah ${locationName}. Selamat menunaikan ibadah sholat.`
             );
@@ -271,7 +326,7 @@ const App: React.FC = () => {
          }
       }
     });
-  };
+  }, [prayerSchedule, locationName, sendNotification]);
 
   // Timer untuk jam digital & Cek Notifikasi
   useEffect(() => {
@@ -280,7 +335,7 @@ const App: React.FC = () => {
       checkPrayerNotifications();
     }, 1000);
     return () => clearInterval(timer);
-  }, [prayerSchedule, locationName]); // Add dependencies needed for checkPrayerNotifications
+  }, [checkPrayerNotifications]); 
 
   // Fetch News from MUI Jakarta
   const fetchHomeNews = useCallback(async (page: number) => {
@@ -298,7 +353,6 @@ const App: React.FC = () => {
             cat = item._embedded['wp:term'][0][0].name;
           }
           
-          // Clean category name (&amp; -> Dan)
           cat = cat.replace(/&amp;/gi, 'Dan').replace(/&/g, 'Dan');
 
           let img = "https://muijakarta.or.id/wp-content/uploads/2023/11/WhatsApp-Image-2023-11-20-at-10.45.28-1024x683.jpeg";
@@ -315,9 +369,9 @@ const App: React.FC = () => {
             id: item.id,
             title: item.title.rendered.replace(/&#8217;/g, "'").replace(/&#8220;/g, '"').replace(/&#8221;/g, '"'),
             date: new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-            url: item.link, // For sharing
-            content: item.content.rendered, // For detail view
-            imageUrl: img, // For detail view
+            url: item.link, 
+            content: item.content.rendered, 
+            imageUrl: img, 
             author: authorName,
             category: cat.toUpperCase()
           };
@@ -338,7 +392,6 @@ const App: React.FC = () => {
     }
   }, [showSplash, newsPage, fetchHomeNews]);
 
-  // Generate Random Quote
   const generateDailyQuote = () => {
     const randomIndex = Math.floor(Math.random() * ISLAMIC_QUOTES.length);
     setDailyQuote(ISLAMIC_QUOTES[randomIndex]);
@@ -353,25 +406,17 @@ const App: React.FC = () => {
     }
   };
 
-  // Hitung Mundur Ramadhan
   const daysToRamadan = useMemo(() => {
     const today = new Date();
-    // Estimasi 1 Ramadhan 2025 = 1 Maret 2025 (Perlu penyesuaian tahunan atau algoritma hijriah komplek)
-    // Disini kita hardcode target estimasi untuk 2025
-    let target = new Date(2025, 2, 1); // Bulan 2 = Maret
-    
-    // Jika lewat, set ke tahun depan (kira-kira mundur 11 hari per tahun masehi)
+    let target = new Date(2025, 2, 1); 
     if (today > target) {
-       target = new Date(2026, 1, 18); // Estimasi 2026
+       target = new Date(2026, 1, 18);
     }
-    
     const diff = target.getTime() - today.getTime();
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
     return days > 0 ? days : 0;
   }, []);
 
-
-  // Fungsi mengambil jadwal sholat berdasarkan koordinat (Method 20 = Kemenag RI)
   const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, cityDisplayName: string) => {
     try {
       const timestamp = Math.floor(Date.now() / 1000);
@@ -398,7 +443,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Deteksi Lokasi dan Jadwal
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -428,7 +472,6 @@ const App: React.FC = () => {
     }
   }, [fetchPrayerTimesByCoords]);
 
-  // Logika Waktu Sholat Berikutnya
   const nextPrayer = useMemo(() => {
     if (!prayerSchedule) return { name: 'Memuat...', time: '--:--' };
     const now = new Date();
@@ -452,7 +495,6 @@ const App: React.FC = () => {
     return next || { name: 'Subuh', time: prayerSchedule.subuh }; 
   }, [prayerSchedule, currentTime]);
 
-  // Logika Countdown
   const countdown = useMemo(() => {
     if (!prayerSchedule || nextPrayer.time === '--:--') return "00:00:00";
     const [h, m] = nextPrayer.time.split(':').map(Number);
@@ -488,6 +530,8 @@ const App: React.FC = () => {
     if (menuId === 'kiblat') setIsKiblatOpen(true);
     if (menuId === 'fatwa') setIsFatwaOpen(true);
     if (menuId === 'berita') setIsNewsOpen(true);
+    if (menuId === 'calendar') setIsCalendarOpen(true);
+    if (menuId === 'install') handleInstallApp();
   };
 
   const handleNewsClick = (news: NewsDetailData) => {
@@ -514,7 +558,6 @@ const App: React.FC = () => {
             <Search size={22} />
           </button>
           
-          {/* Location moved here */}
           <div className="flex flex-col items-center mt-1.5">
              <div className="flex items-center space-x-1.5 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
                 <MapPin size={10} className="text-red-400 fill-red-400" />
@@ -534,7 +577,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="w-full flex flex-col items-center pb-6 pt-0 px-6 relative z-20">
-          {/* Logo with reduced border */}
           <div className="mb-2">
              <div className="w-20 h-20 bg-white rounded-full p-1 shadow-2xl flex items-center justify-center border border-white active:scale-105 transition-transform overflow-hidden">
                 <img src="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png" alt="MUI" className="w-full h-full object-contain" />
@@ -551,7 +593,6 @@ const App: React.FC = () => {
             <span className="mr-2 text-orange-400 font-black">-</span> {countdown}
           </div>
 
-          {/* Date display with Black Text */}
           <div className="text-[10px] font-black text-gray-900 tracking-wider bg-white/40 backdrop-blur-md px-6 py-2.5 rounded-full uppercase border border-white/20 shadow-xl flex items-center justify-center whitespace-nowrap overflow-hidden">
             <span className="shrink-0">
               {currentTime.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -567,9 +608,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Content Container (Padding Bottom untuk Nav) */}
       <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-32">
-        {/* Menu Grid */}
         <div className="grid grid-cols-4 gap-x-3 gap-y-8 pb-8">
           {QUICK_MENUS.map((menu) => (
             <button 
@@ -585,7 +624,6 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Permission Request Card (Still kept as inline reminder) */}
         {notificationPermission === 'default' && (
            <div className="bg-[#fff7ed] rounded-[32px] p-5 shadow-sm border border-orange-100 mb-6 flex items-start space-x-4 relative overflow-hidden">
                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center shrink-0 text-orange-600">
@@ -606,9 +644,7 @@ const App: React.FC = () => {
            </div>
         )}
 
-        {/* Ramadhan Countdown Card */}
         <div className="bg-gradient-to-br from-[#00a896] to-emerald-700 rounded-[32px] p-6 shadow-xl shadow-teal-900/10 mb-6 relative overflow-hidden group">
-          {/* Pattern & Ornaments */}
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
           <div className="absolute -right-6 -bottom-6 opacity-20 text-white">
              <Star size={100} />
@@ -639,12 +675,10 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Quote Hari Ini Card */}
         <div 
           onClick={handleCopyQuote}
           className="bg-white rounded-[32px] p-6 shadow-xl shadow-teal-900/5 mb-4 flex flex-col items-center relative overflow-hidden cursor-pointer group hover:shadow-2xl hover:shadow-teal-900/10 transition-all active:scale-[0.98]"
         >
-           {/* Decorative Background */}
            <div className="absolute top-0 left-0 w-20 h-20 bg-teal-50 rounded-br-[80px] opacity-60 -ml-6 -mt-6 pointer-events-none"></div>
            <div className="absolute bottom-0 right-0 w-24 h-24 bg-orange-50 rounded-tl-[100px] opacity-60 -mr-8 -mb-8 pointer-events-none"></div>
 
@@ -673,12 +707,10 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        {/* Card Masjid Terdekat */}
         <div 
           onClick={() => setIsMosqueOpen(true)}
           className="bg-gradient-to-r from-[#00a896] to-teal-700 rounded-[32px] p-5 shadow-lg shadow-teal-900/10 mb-8 flex items-center justify-between relative overflow-hidden cursor-pointer group hover:shadow-xl hover:shadow-teal-900/20 transition-all active:scale-[0.98]"
         >
-          {/* Pattern Overlay */}
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
           
           <div className="relative z-10 flex items-center space-x-4">
@@ -696,7 +728,6 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Info Terkini / News Section */}
         <div className="pb-10">
           <div className="flex justify-between items-center mb-6">
              <h2 className="text-xl font-black text-gray-800 border-l-4 border-[#00a896] pl-3">Info Terkini</h2>
@@ -719,7 +750,6 @@ const App: React.FC = () => {
                     onClick={() => handleNewsClick(item)}
                     className="flex flex-col bg-white p-3 rounded-[24px] border border-gray-100 shadow-sm active:scale-[0.98] transition-all hover:border-[#00a896]/30 cursor-pointer overflow-hidden"
                   >
-                     {/* Image & Title Only (No Category, No Date) */}
                      <div className="w-full h-40 rounded-[16px] overflow-hidden mb-3 relative bg-gray-100">
                         <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
                      </div>
@@ -727,7 +757,6 @@ const App: React.FC = () => {
                   </div>
                 ))}
 
-                {/* Pagination Controls */}
                 <div className="flex items-center justify-center space-x-2 mt-6">
                   <button 
                     onClick={() => setNewsPage(prev => Math.max(1, prev - 1))}
@@ -757,23 +786,19 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Persistent Floating Bottom Nav - Fixed at Bottom */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
         
-        {/* Left Side */}
         <div className="flex-1 flex justify-between pr-4 pb-1">
           <NavButton icon={<BookOpen size={20} />} label="Al-Quran" onClick={() => setIsQuranOpen(true)} />
           <NavButton icon={<FileText size={20} />} label="Fatwa" onClick={() => setIsFatwaOpen(true)} />
         </div>
 
-        {/* Center Button (Beranda) */}
         <div className="relative -top-6 px-2 flex flex-col items-center">
            <button 
              onClick={() => {
-                // Beranda logic: Close all modals to reveal main content
                 setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
-                setIsMosqueOpen(false); setIsCalendarOpen(false);
+                setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false);
              }}
              className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            >
@@ -782,32 +807,37 @@ const App: React.FC = () => {
            <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span>
         </div>
 
-        {/* Right Side */}
         <div className="flex-1 flex justify-between pl-4 pb-1">
           <NavButton icon={<CalendarIcon size={20} />} label="Kalender" onClick={() => setIsCalendarOpen(true)} />
           <NavButton icon={<User size={20} />} label="Profil" onClick={() => setIsProfileOpen(true)} />
         </div>
       </nav>
 
-      {/* Install PWA Modal - Auto detected */}
-      <InstallPwaModal />
+      <InstallPwaModal 
+         isOpen={isInstallModalOpen}
+         onClose={handleCloseInstallModal}
+         onInstall={handleInstallApp}
+         isIOS={isIOS}
+      />
 
-      {/* Permission Modal - Triggered after splash if permissions needed */}
       <PermissionModal 
         isOpen={isPermissionModalOpen}
         onClose={() => setIsPermissionModalOpen(false)}
         onPermissionsGranted={() => setIsPermissionModalOpen(false)}
       />
 
-      {/* Modals / Pages */}
-      <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <FullMenuModal 
+          isOpen={isMenuOpen} 
+          onClose={() => setIsMenuOpen(false)} 
+          onNavigate={handleQuickNavigation} 
+      />
+      
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
       <QuranPage isOpen={isQuranOpen} onClose={() => setIsQuranOpen(false)} />
       <HaditsPage isOpen={isHaditsOpen} onClose={() => setIsHaditsOpen(false)} />
       <KiblatPage isOpen={isKiblatOpen} onClose={() => setIsKiblatOpen(false)} locationName={locationName} />
       <HalalPage isOpen={isHalalOpen} onClose={() => setIsHalalOpen(false)} />
       
-      {/* New Pages */}
       <FatwaPage isOpen={isFatwaOpen} onClose={() => setIsFatwaOpen(false)} />
       <NewsPage isOpen={isNewsOpen} onClose={() => setIsNewsOpen(false)} />
       <MosquePage isOpen={isMosqueOpen} onClose={() => setIsMosqueOpen(false)} />
@@ -819,7 +849,6 @@ const App: React.FC = () => {
         news={selectedNews} 
       />
       
-      {/* Utility Modals */}
       <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} onNavigate={handleQuickNavigation} />
       <NotificationModal 
         isOpen={isNotifOpen} 
