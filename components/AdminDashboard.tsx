@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Bell, Send, Trash2, LogOut, CheckCircle, Smartphone, 
   AlertCircle, Settings, Database, Save, Users, Home, 
-  Menu, X, MapPin, Loader2, Clock, Map as MapIcon, ShieldCheck 
+  Menu, X, MapPin, Loader2, Clock, Map as MapIcon, ShieldCheck,
+  Cpu, Monitor
 } from 'lucide-react';
 import { NotificationItem } from './NotificationModal';
 import { ref, push, onValue, remove, set, update } from 'firebase/database';
@@ -96,7 +97,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }
 
     if (activeTab === 'tracking' && mapRef.current) {
-        // Clear old markers if users changed significantly or just update them
         users.forEach(user => {
             if (user.latitude && user.longitude) {
                 const isOnline = Date.now() - new Date(user.lastActive || 0).getTime() < 300000;
@@ -105,23 +105,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 const customIcon = L.divIcon({
                     html: iconHtml,
                     className: 'custom-div-icon',
-                    iconSize: [12, 12],
-                    iconAnchor: [6, 6]
+                    iconSize: isOnline ? [24, 24] : [14, 14],
+                    iconAnchor: isOnline ? [12, 12] : [7, 7]
                 });
+
+                // Generate popup content with device info
+                const popupContent = `
+                    <div style="min-width: 180px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; border-bottom: 1px solid #eee; padding-bottom: 6px;">
+                            <div style="width: 8px; height: 8px; border-radius: 50%; background: ${isOnline ? '#22c55e' : '#9ca3af'};"></div>
+                            <span style="font-weight: 800; font-size: 14px; color: #00827f;">${user.name || 'Guest User'}</span>
+                        </div>
+                        <div style="font-size: 11px; color: #4b5563; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                            <span style="opacity: 0.6;">📍</span> <b>Lokasi:</b> ${user.location || 'Unknown'}
+                        </div>
+                        <div style="font-size: 11px; color: #4b5563; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                            <span style="opacity: 0.6;">📱</span> <b>Platform:</b> ${user.platform}
+                        </div>
+                        <div style="font-size: 10px; color: #6b7280; margin-bottom: 8px; background: #f9fafb; padding: 6px; border-radius: 8px; border: 1px solid #f3f4f6; overflow: hidden; text-overflow: ellipsis; max-height: 40px;">
+                            <b>UA:</b> ${user.userAgent}
+                        </div>
+                        <div style="font-size: 10px; color: #9ca3af; text-align: right; font-style: italic;">
+                            ${isOnline ? 'Sedang aktif sekarang' : 'Terakhir: ' + new Date(user.lastActive || '').toLocaleTimeString()}
+                        </div>
+                    </div>
+                `;
 
                 if (markersRef.current[user.id]) {
                     markersRef.current[user.id].setLatLng([user.latitude, user.longitude]);
                     markersRef.current[user.id].setIcon(customIcon);
+                    markersRef.current[user.id].setPopupContent(popupContent);
                 } else {
                     const marker = L.marker([user.latitude, user.longitude], { icon: customIcon })
                         .addTo(mapRef.current)
-                        .bindPopup(`
-                            <div class="p-1">
-                                <p class="font-bold text-teal-700">${user.name || 'Guest User'}</p>
-                                <p class="text-[10px] text-gray-500">${user.location || 'Lokasi tidak diketahui'}</p>
-                                <p class="text-[9px] mt-1 italic">${isOnline ? 'Sedang Online' : 'Terakhir aktif: ' + new Date(user.lastActive || '').toLocaleTimeString()}</p>
-                            </div>
-                        `);
+                        .bindPopup(popupContent);
                     markersRef.current[user.id] = marker;
                 }
             }
