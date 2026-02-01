@@ -31,6 +31,7 @@ import FatwaPage from './components/FatwaPage';
 import NewsPage from './components/NewsPage';
 import MosquePage from './components/MosquePage';
 import CalendarPage from './components/CalendarPage';
+import VideoPage from './components/VideoPage';
 import SearchModal from './components/SearchModal';
 import NotificationModal, { NotificationItem } from './components/NotificationModal';
 import InfoModal from './components/InfoModal';
@@ -41,7 +42,7 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 // FIREBASE IMPORTS
-import { ref, onChildAdded, limitToLast, query, orderByKey } from 'firebase/database';
+import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot } from 'firebase/database';
 import { db } from './firebaseConfig';
 
 // --- Global Constant Declaration ---
@@ -105,6 +106,7 @@ const App: React.FC = () => {
   const [isIOS, setIsIOS] = useState(false);
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
   const [isQuranOpen, setIsQuranOpen] = useState(false);
+  const [isVideoOpen, setIsVideoOpen] = useState(false); // State untuk Video Page
   const [isHaditsOpen, setIsHaditsOpen] = useState(false);
   const [isKiblatOpen, setIsKiblatOpen] = useState(false);
   const [isHalalOpen, setIsHalalOpen] = useState(false);
@@ -300,7 +302,7 @@ const App: React.FC = () => {
     // 2. Listen to Firebase Realtime Database
     const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(5));
     
-    const unsubscribe = onChildAdded(notifRef, (snapshot) => {
+    const unsubscribe = onChildAdded(notifRef, (snapshot: DataSnapshot) => {
        const data = snapshot.val();
        if (data && data.id) {
           // Cek apakah notifikasi ini sudah ada di state lokal (untuk menghindari duplikat)
@@ -596,7 +598,7 @@ const App: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
       </div>
 
-      <div className="relative z-10 pt-4 flex flex-col items-center">
+      <div className="relative z-10 pt-14 flex flex-col items-center">
         {/* Top Bar */}
         <div className="w-full px-6 flex justify-between items-start mb-0 relative z-20 pt-2">
           <button 
@@ -796,14 +798,19 @@ const App: React.FC = () => {
 
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
         <div className="flex-1 flex justify-between pr-4 pb-1">
-          <button onClick={() => setIsQuranOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><BookOpen size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Al-Quran</span></button>
+          <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all">
+             <div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50">
+                 <img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-5 h-5 object-contain opacity-60 group-hover:opacity-100" />
+             </div>
+             <span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Video</span>
+          </button>
           <button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><FileText size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Fatwa</span></button>
         </div>
         <div className="relative -top-6 px-2 flex flex-col items-center">
            <button onClick={() => {
                 setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
-                setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false);
+                setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false); setIsVideoOpen(false);
              }}
              className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            ><Home size={24} /></button>
@@ -821,6 +828,7 @@ const App: React.FC = () => {
       <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} onNavigate={handleQuickNavigation} />
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
       <QuranPage isOpen={isQuranOpen} onClose={() => setIsQuranOpen(false)} />
+      <VideoPage isOpen={isVideoOpen} onClose={() => setIsVideoOpen(false)} />
       <HaditsPage isOpen={isHaditsOpen} onClose={() => setIsHaditsOpen(false)} />
       <KiblatPage isOpen={isKiblatOpen} onClose={() => setIsKiblatOpen(false)} locationName={locationName} />
       <HalalPage isOpen={isHalalOpen} onClose={() => setIsHalalOpen(false)} />

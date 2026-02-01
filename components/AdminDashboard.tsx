@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Send, Trash2, LogOut, CheckCircle, Smartphone, AlertCircle } from 'lucide-react';
 import { NotificationItem } from './NotificationModal';
-import { ref, push, onValue, remove, set } from 'firebase/database';
+import { ref, push, onValue, remove, set, DataSnapshot } from 'firebase/database';
 import { db } from '../firebaseConfig';
 
 interface AdminDashboardProps {
@@ -23,7 +23,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const historyRef = ref(db, 'notifications');
     
     // Realtime Listener
-    const unsubscribe = onValue(historyRef, (snapshot) => {
+    const unsubscribe = onValue(historyRef, (snapshot: DataSnapshot) => {
        const data = snapshot.val();
        if (data) {
           // Convert Object to Array & Reverse (Newest First)
