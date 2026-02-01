@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Bell, Send, Trash2, LogOut, CheckCircle, Smartphone } from 'lucide-react';
 import { NotificationItem } from './NotificationModal';
@@ -34,7 +33,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     if (!title || !message) return;
 
     // 1. PENTING: Ambil data terbaru dari localStorage sesaat sebelum update
-    // Ini mencegah Admin menimpa data notifikasi (seperti jadwal sholat) yang mungkin masuk saat Admin sedang idle
+    // Ini mencegah Admin menimpa data notifikasi yang mungkin sudah diubah statusnya oleh user (read/unread)
     let currentData: NotificationItem[] = [];
     const saved = localStorage.getItem('mui_notifications');
     if (saved) {
@@ -55,6 +54,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       isNewBroadcast: true // Flag untuk mentrigger push notif di sisi user
     };
 
+    // Tambahkan notifikasi baru di paling atas
     const updatedHistory = [newNotif, ...currentData];
     
     // 2. Simpan ke LocalStorage

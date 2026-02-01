@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { 
   MapPin, 
@@ -41,6 +40,10 @@ import PermissionModal from './components/PermissionModal';
 import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
+// --- Global Constant Declaration ---
+declare const __APP_VERSION__: string;
+// -------------------------------------
+
 export interface PrayerSchedule {
   subuh: string;
   terbit: string;
@@ -79,6 +82,9 @@ const SplashScreen: React.FC = () => (
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
+  // Gunakan variabel global yang didefinisikan di vite.config.ts
+  // Gunakan try-catch atau typeof check untuk keamanan ekstra di environment tertentu
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
   
   // --- Admin Mode Logic ---
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -165,27 +171,39 @@ const App: React.FC = () => {
     window.location.href = window.location.pathname;
   };
 
-  // --- Logic PWA Install ---
+  // --- Logic PWA Install (UPDATED) ---
   useEffect(() => {
     const userAgent = window.navigator.userAgent.toLowerCase();
     const ios = /iphone|ipad|ipod/.test(userAgent);
     setIsIOS(ios);
 
+    // 1. Capture event for Android/Chrome (Still needed for the button to work)
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-      const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
-      if (!isStandalone && !hasDismissed && !isAdminMode) { // Dont show install on admin
-         setTimeout(() => setIsInstallModalOpen(true), 3000);
-      }
+      console.log("Install prompt captured");
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // 2. FORCE SHOW MODAL LOGIC
+    // Cek apakah aplikasi berjalan di mode browser (bukan standalone/terinstall)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+    const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
+
+    // Jika belum install, belum dismiss, bukan admin, dan splash sudah selesai
+    if (!isStandalone && !hasDismissed && !isAdminMode && !showSplash) {
+       // Beri jeda 3 detik agar user melihat halaman depan dulu
+       const timer = setTimeout(() => {
+          setIsInstallModalOpen(true);
+       }, 3000);
+       return () => clearTimeout(timer);
+    }
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
-  }, [isAdminMode]);
+  }, [isAdminMode, showSplash]);
 
   const handleInstallApp = async () => {
     if (deferredPrompt) {
@@ -196,9 +214,11 @@ const App: React.FC = () => {
         setIsInstallModalOpen(false);
       }
     } else if (isIOS) {
+       // iOS instructions are inside the modal content
        setIsInstallModalOpen(true);
     } else {
-       setIsInstallModalOpen(true);
+       // Fallback for browsers that don't support beforeinstallprompt but aren't installed
+       alert("Untuk menginstall: Tap menu browser (titik tiga) lalu pilih 'Install App' atau 'Tambahkan ke Layar Utama'");
     }
   };
   
@@ -212,19 +232,20 @@ const App: React.FC = () => {
     if ('Notification' in window && Notification.permission !== 'granted') {
       shouldShow = true;
     }
-    if (shouldShow && !isAdminMode) {
+    // Only show permission modal if Install Modal is NOT open to avoid stacking
+    if (shouldShow && !isAdminMode && !isInstallModalOpen) {
       setIsPermissionModalOpen(true);
     }
   };
 
   useEffect(() => {
-    if (!showSplash && !isAdminMode) {
+    if (!showSplash && !isAdminMode && !isInstallModalOpen) {
       const timer = setTimeout(() => {
          checkInitialPermissions();
-      }, 500);
+      }, 1000); // Wait a bit longer than install modal check
       return () => clearTimeout(timer);
     }
-  }, [showSplash, isAdminMode]);
+  }, [showSplash, isAdminMode, isInstallModalOpen]);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -251,10 +272,6 @@ const App: React.FC = () => {
 
   // --- Logic Push Notification Browser & In-App ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
-    // 1. In-App Notification (Lonceng) - hanya tambahkan jika belum ada di state (untuk menghindari duplikasi dari localStorage)
-    // Logika state handled by effect below for admin notifications
-    
-    // 2. Kirim Push Notification Browser (Hanya jika diizinkan)
     if ("Notification" in window && Notification.permission === "granted") {
       try {
         new Notification(title, {
@@ -271,14 +288,12 @@ const App: React.FC = () => {
   }, []);
 
   // --- SYNC NOTIFICATIONS FROM LOCAL STORAGE (Admin -> User) ---
-  // Load initial notifications on mount
   useEffect(() => {
     const loadStoredNotifs = () => {
        const stored = localStorage.getItem('mui_notifications');
        if (stored) {
          try {
            const parsed: any[] = JSON.parse(stored);
-           // Sort new to old
            setNotifications(parsed);
          } catch (e) {
            console.error("Failed parsing notifications", e);
@@ -288,41 +303,31 @@ const App: React.FC = () => {
     loadStoredNotifs();
   }, []);
 
-  // Poll for new notifications from Admin
   useEffect(() => {
     const interval = setInterval(() => {
        const stored = localStorage.getItem('mui_notifications');
        if (stored) {
          try {
            const parsed: any[] = JSON.parse(stored);
-           
-           // Check for any item marked as isNewBroadcast
            const newBroadcasts = parsed.filter(n => n.isNewBroadcast === true);
            
            if (newBroadcasts.length > 0) {
-              // Trigger Push for each new item
               newBroadcasts.forEach(item => {
                  sendNotification(item.title, item.desc, true);
               });
-
-              // Mark them as processed (isNewBroadcast = false) so we don't spam
               const updated = parsed.map(n => ({ ...n, isNewBroadcast: false }));
               localStorage.setItem('mui_notifications', JSON.stringify(updated));
-              
-              // Update state
               setNotifications(updated);
            } else {
-             // Just sync state if counts differ (e.g. deletion from admin)
              setNotifications(prev => {
-                if (prev.length !== parsed.length) return parsed;
-                // Deep compare simple check
+                // Only update state if data actually changed
                 if (JSON.stringify(prev) !== JSON.stringify(parsed)) return parsed;
                 return prev;
              });
            }
          } catch(e) {}
        }
-    }, 2000); // Check every 2 seconds
+    }, 2000); 
 
     return () => clearInterval(interval);
   }, [sendNotification]);
@@ -366,7 +371,6 @@ const App: React.FC = () => {
             );
             sentNotificationsRef.current.add(key);
             
-            // Add to internal list
              const newNotif: NotificationItem = {
               id: Date.now(),
               type: 'prayer',
@@ -798,7 +802,7 @@ const App: React.FC = () => {
              className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            ><Home size={24} /></button>
            <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896] mt-1">Beranda</span>
-           <span className="text-[8px] font-medium text-gray-400 -mt-0.5">Ver 1.0</span>
+           <span className="text-[8px] font-medium text-gray-400 -mt-0.5">Ver {appVersion}</span>
         </div>
         <div className="flex-1 flex justify-between pl-4 pb-1">
           <button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all"><div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50"><CalendarIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-wide opacity-80">Kalender</span></button>
