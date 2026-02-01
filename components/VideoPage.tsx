@@ -22,7 +22,8 @@ const VideoPage: React.FC<VideoPageProps> = ({ isOpen, onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-[160] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[160] flex justify-center">
+      <div className="w-full h-full bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300 relative">
       {/* Header */}
       <div 
         className="pt-12 pb-8 px-6 relative overflow-hidden shadow-lg bg-[#00a896]"
@@ -108,7 +109,7 @@ const VideoPage: React.FC<VideoPageProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Floating CTA */}
-      <div className="fixed bottom-6 left-6 right-6 z-[170]">
+      <div className="absolute bottom-6 left-6 right-6 z-[170]">
             <a 
             href={instagramUrl}
             target="_blank"
@@ -118,6 +119,7 @@ const VideoPage: React.FC<VideoPageProps> = ({ isOpen, onClose }) => {
             <Instagram size={20} className="mr-2" />
             Tonton Selengkapnya
             </a>
+      </div>
       </div>
     </div>
   );

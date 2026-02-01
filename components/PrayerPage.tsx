@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ArrowLeft, Clock, MapPin, Loader2, RefreshCw } from 'lucide-react';
 import { PrayerSchedule } from '../App';
@@ -24,7 +23,8 @@ const PrayerPage: React.FC<PrayerPageProps> = ({ isOpen, onClose, schedule, loca
   ] : [];
 
   return (
-    <div className="fixed inset-0 z-[120] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[120]">
+      <div className="w-full h-full bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300 relative">
       {/* Header Card Style */}
       <div 
         className="pt-6 pb-6 px-6 relative rounded-b-[32px] shadow-lg bg-[#00a896] overflow-hidden"
@@ -128,6 +128,7 @@ const PrayerPage: React.FC<PrayerPageProps> = ({ isOpen, onClose, schedule, loca
              </p>
            </div>
         </div>
+      </div>
       </div>
     </div>
   );

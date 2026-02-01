@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, MapPin, Loader2, RefreshCw, AlertCircle, Compass, CheckCircle, Info, MoreVertical } from 'lucide-react';
 
@@ -169,7 +168,8 @@ const KiblatPage: React.FC<KiblatPageProps> = ({ isOpen, onClose, locationName =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[170] flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden" style={{ background: 'linear-gradient(to bottom, #10b981, #047857)' }}>
+    <div className="fixed inset-0 z-[170] bg-black/50">
+      <div className="w-full h-full flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden shadow-2xl relative" style={{ background: 'linear-gradient(to bottom, #10b981, #047857)' }}>
       {/* Background Silhouette */}
       <div 
         className="absolute bottom-0 left-0 right-0 h-1/2 opacity-20 pointer-events-none"
@@ -338,6 +338,7 @@ const KiblatPage: React.FC<KiblatPageProps> = ({ isOpen, onClose, locationName =
              )}
            </>
         )}
+      </div>
       </div>
     </div>
   );

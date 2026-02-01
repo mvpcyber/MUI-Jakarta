@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   ArrowLeft, 
@@ -179,7 +178,8 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[160] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[160]">
+      <div className="w-full h-full bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300 relative">
       {/* Header */}
       <div 
         className="pt-12 pb-8 px-6 relative overflow-hidden shadow-lg bg-[#00a896]"
@@ -319,6 +319,7 @@ const HaditsPage: React.FC<HaditsPageProps> = ({ isOpen, onClose }) => {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

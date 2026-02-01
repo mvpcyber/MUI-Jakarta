@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, ArrowLeft, Loader2, Play, Pause, Volume2, Eye, EyeOff, Settings2, Check } from 'lucide-react';
 
@@ -168,7 +167,8 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[150] bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[150]">
+      <div className="w-full h-full bg-[#f8fafc] flex flex-col animate-in slide-in-from-right duration-300 relative">
       <audio 
         ref={audioRef} 
         onEnded={() => {
@@ -416,7 +416,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
 
       {/* Mini Player - Floating at bottom (Raised to avoid bottom nav coverage) */}
       {currentAudioUrl && (
-        <div className="fixed bottom-28 left-6 right-6 bg-white rounded-[24px] shadow-2xl border border-gray-100 p-3 flex items-center space-x-3 animate-in slide-in-from-bottom duration-500 z-[200]">
+        <div className="absolute bottom-6 left-6 right-6 bg-white rounded-[24px] shadow-2xl border border-gray-100 p-3 flex items-center space-x-3 animate-in slide-in-from-bottom duration-500 z-[200]">
            <div className="w-10 h-10 bg-[#00a896] rounded-xl flex items-center justify-center text-white shadow-lg shadow-teal-200 shrink-0">
               <Volume2 size={20} />
            </div>
@@ -449,6 +449,7 @@ const QuranPage: React.FC<QuranPageProps> = ({ isOpen, onClose }) => {
            </div>
         </div>
       )}
+    </div>
     </div>
   );
 };

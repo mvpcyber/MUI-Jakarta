@@ -133,7 +133,8 @@ const App: React.FC = () => {
   const [isCopied, setIsCopied] = useState(false);
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const lastNotificationIdRef = useRef<number>(0);
+  // Menggunakan timestamp saat app dibuka sebagai batas bawah notifikasi realtime
+  const appLaunchTimeRef = useRef<number>(Date.now());
 
   // --- FORCE PWA UPDATE LOGIC ---
   useEffect(() => {
@@ -275,6 +276,7 @@ const App: React.FC = () => {
         notif.onclick = function() {
             window.focus();
             notif.close();
+            setIsNotifOpen(true); // Buka modal notifikasi saat diklik
         };
       } catch (e) {
         console.warn("Browser notification failed", e);
@@ -286,13 +288,11 @@ const App: React.FC = () => {
   useEffect(() => {
     // 1. Load Local State First (Read/Deleted status)
     const localStored = localStorage.getItem('mui_notifications_local');
-    let localData: NotificationItem[] = [];
     if (localStored) {
       try {
-        localData = JSON.parse(localStored);
+        const localData = JSON.parse(localStored);
         if (localData.length > 0) {
            setNotifications(localData);
-           lastNotificationIdRef.current = Math.max(...localData.map(n => n.id));
         }
       } catch (e) {}
     }
@@ -300,27 +300,28 @@ const App: React.FC = () => {
     if (!db) return; // Jika firebase belum dikonfigurasi
 
     // 2. Listen to Firebase Realtime Database
+    // Ambil 5 notifikasi terakhir dari server
     const notifRef = query(ref(db, 'notifications'), orderByKey(), limitToLast(5));
     
     const unsubscribe = onChildAdded(notifRef, (snapshot: DataSnapshot) => {
        const data = snapshot.val();
        if (data && data.id) {
-          // Cek apakah notifikasi ini sudah ada di state lokal (untuk menghindari duplikat)
+          
           setNotifications(prev => {
+             // Cek duplikat
              const exists = prev.some(n => n.id === data.id);
              if (exists) return prev;
              
-             // Jika notifikasi baru (waktu kedatangan > waktu terakhir aplikasi dibuka atau belum ada di list)
-             // Tampilkan Push Notification
-             if (data.id > lastNotificationIdRef.current) {
-                 // Cek agar tidak memunculkan notif lama saat baru buka app (optional time check)
-                 const notifTime = new Date(data.id).getTime();
-                 const now = new Date().getTime();
-                 // Tampilkan popup jika notifikasi berumur kurang dari 24 jam
-                 if (now - notifTime < 86400000) { 
+             // LOGIKA NOTIFIKASI STATUS BAR:
+             const notifTime = new Date(data.id).getTime();
+             const now = Date.now();
+             const isRecent = (now - notifTime) < (60 * 60 * 1000); // 1 jam
+
+             // Trigger Status Bar Notification hanya jika pesan baru/segar
+             if (isRecent) {
+                 setTimeout(() => {
                     sendNotification(data.title, data.desc, true);
-                 }
-                 lastNotificationIdRef.current = data.id;
+                 }, 500);
              }
 
              const newNotifItem: NotificationItem = {
@@ -332,8 +333,8 @@ const App: React.FC = () => {
                 read: false
              };
              
-             const updated = [newNotifItem, ...prev];
-             // Simpan ke local storage agar status read/unread user tersimpan
+             const updated = [newNotifItem, ...prev].slice(0, 20); // Batasi 20 items lokal
+             
              localStorage.setItem('mui_notifications_local', JSON.stringify(updated));
              return updated;
           });
@@ -592,7 +593,7 @@ const App: React.FC = () => {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <div className="max-w-md mx-auto bg-[#f8fafc] min-h-screen relative shadow-2xl overflow-x-hidden">
+    <div className="w-full min-h-screen bg-[#f8fafc] relative overflow-x-hidden">
       {/* Header Background */}
       <div className="absolute top-0 left-0 right-0 h-[360px] islamic-bg z-0">
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-teal-900/60 to-[#f8fafc]"></div>
@@ -659,7 +660,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="bg-[#f8fafc] rounded-t-[40px] px-5 pt-8 -mt-6 relative z-30 shadow-[0_-20px_50px_rgba(0,0,0,0.1)] pb-32">
-        <div className="grid grid-cols-4 gap-x-3 gap-y-8 pb-8">
+        <div className="grid grid-cols-4 md:grid-cols-8 gap-x-3 gap-y-8 pb-8">
           {QUICK_MENUS.map((menu) => (
             <button 
               key={menu.id} 
@@ -796,7 +797,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
+      <nav className="fixed bottom-0 left-0 right-0 w-full bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-10px_40px_-10px_rgba(0,0,0,0.05)] flex justify-between items-end px-6 py-2 pb-5 z-[200] rounded-t-[30px]">
         <div className="flex-1 flex justify-between pr-4 pb-1">
           <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center space-y-1 group w-14 text-gray-400 active:scale-95 transition-all">
              <div className="p-2 rounded-xl transition-colors group-hover:bg-gray-50">

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   ArrowLeft, 
@@ -91,7 +90,8 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[180] bg-[#fcfcfc] flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden">
+    <div className="fixed inset-0 z-[180]">
+      <div className="w-full h-full bg-[#fcfcfc] flex flex-col animate-in slide-in-from-right duration-300 overflow-hidden shadow-2xl">
       {/* Header Bar */}
       <div className="pt-12 pb-4 px-6 bg-white flex items-center justify-between border-b border-gray-100">
         <button onClick={onClose} className="p-2 text-gray-400 active:scale-90 transition-transform">
@@ -258,6 +258,7 @@ const HalalPage: React.FC<HalalPageProps> = ({ isOpen, onClose }) => {
               Hasil pencarian ini adalah simulasi. Untuk verifikasi resmi, selalu gunakan situs halal.go.id.
             </p>
          </div>
+      </div>
       </div>
     </div>
   );
