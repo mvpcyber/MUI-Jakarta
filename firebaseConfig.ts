@@ -25,7 +25,7 @@ const LOCAL_STORAGE_KEY = 'mui_firebase_config';
 const defaultConfig: FirebaseConfigType = {
   apiKey: "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c",
   authDomain: "mui-jakarta.firebaseapp.com",
-  databaseURL: "https://mui-jakarta-default-rtdb.asia-southeast1.firebasedatabase.app", // Updated based on screenshot
+  databaseURL: "https://mui-jakarta-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "mui-jakarta",
   storageBucket: "mui-jakarta.firebasestorage.app",
   messagingSenderId: "1032854256041",
@@ -39,8 +39,8 @@ export const getFirebaseConfig = (): FirebaseConfigType => {
   if (stored) {
     try {
       const parsed = JSON.parse(stored);
-      // Validasi sederhana
-      if (parsed.apiKey && parsed.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c") {
+      // Validasi sederhana: Jika API Key tersimpan valid (bukan placeholder)
+      if (parsed.apiKey && !parsed.apiKey.includes("ISI_API_KEY")) {
         return parsed;
       }
     } catch (e) {
@@ -64,9 +64,9 @@ export const resetFirebaseConfig = () => {
 const currentConfig = getFirebaseConfig();
 
 // Cek apakah config sudah diisi (bukan placeholder default)
-// Kita anggap configured jika apiKey tidak sama dengan placeholder default
-const isConfigured = currentConfig.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c" && 
-                     currentConfig.apiKey !== "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c";
+// Logika: Dianggap configured jika apiKey cukup panjang (>20 char) dan tidak mengandung kata 'ISI_API_KEY'
+const isConfigured = currentConfig.apiKey.length > 20 && 
+                     !currentConfig.apiKey.includes("ISI_API_KEY");
 
 let app;
 let db: any;
