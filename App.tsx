@@ -98,6 +98,11 @@ const App: React.FC = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isPermissionModalOpen, setIsPermissionModalOpen] = useState(false);
   
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
+
   // Page States
   const [isPrayerPageOpen, setIsPrayerPageOpen] = useState(false);
   const [isQuranOpen, setIsQuranOpen] = useState(false);
@@ -135,6 +140,65 @@ const App: React.FC = () => {
 
   // Logic Notifikasi
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  // --- Logic PWA Install ---
+  useEffect(() => {
+    // 1. Cek User Agent (iOS detection)
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const ios = /iphone|ipad|ipod/.test(userAgent);
+    setIsIOS(ios);
+
+    // 2. Handle Before Install Prompt
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      
+      // Auto open modal logic (check session storage)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+      const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
+      
+      if (!isStandalone && !hasDismissed) {
+         setTimeout(() => setIsInstallModalOpen(true), 3000);
+      }
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Auto open logic for iOS
+    if (ios) {
+      const isStandalone = (window.navigator as any).standalone;
+      const hasDismissed = sessionStorage.getItem('pwa_install_dismissed');
+      if (!isStandalone && !hasDismissed) {
+         setTimeout(() => setIsInstallModalOpen(true), 3000);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setIsInstallModalOpen(false);
+      }
+    } else if (isIOS) {
+       // iOS instructions are static text in the modal
+       setIsInstallModalOpen(true);
+    } else {
+       // Just open modal, maybe user is on desktop or missed the prompt
+       setIsInstallModalOpen(true);
+    }
+  };
+  
+  const handleCloseInstallModal = () => {
+    setIsInstallModalOpen(false);
+    sessionStorage.setItem('pwa_install_dismissed', 'true');
+  };
 
   // Function to check if we should show the permission modal
   const checkInitialPermissions = async () => {
@@ -488,6 +552,8 @@ const App: React.FC = () => {
     if (menuId === 'kiblat') setIsKiblatOpen(true);
     if (menuId === 'fatwa') setIsFatwaOpen(true);
     if (menuId === 'berita') setIsNewsOpen(true);
+    if (menuId === 'calendar') setIsCalendarOpen(true);
+    if (menuId === 'install') handleInstallApp();
   };
 
   const handleNewsClick = (news: NewsDetailData) => {
@@ -773,7 +839,7 @@ const App: React.FC = () => {
                 // Beranda logic: Close all modals to reveal main content
                 setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
-                setIsMosqueOpen(false); setIsCalendarOpen(false);
+                setIsMosqueOpen(false); setIsCalendarOpen(false); setIsMenuOpen(false);
              }}
              className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            >
@@ -789,8 +855,13 @@ const App: React.FC = () => {
         </div>
       </nav>
 
-      {/* Install PWA Modal - Auto detected */}
-      <InstallPwaModal />
+      {/* Install PWA Modal - Triggered automatically or via menu */}
+      <InstallPwaModal 
+         isOpen={isInstallModalOpen}
+         onClose={handleCloseInstallModal}
+         onInstall={handleInstallApp}
+         isIOS={isIOS}
+      />
 
       {/* Permission Modal - Triggered after splash if permissions needed */}
       <PermissionModal 
@@ -800,7 +871,12 @@ const App: React.FC = () => {
       />
 
       {/* Modals / Pages */}
-      <FullMenuModal isOpen={isMenuOpen} onClose={() => setIsMenuOpen(false)} />
+      <FullMenuModal 
+          isOpen={isMenuOpen} 
+          onClose={() => setIsMenuOpen(false)} 
+          onNavigate={handleQuickNavigation} 
+      />
+      
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
       <QuranPage isOpen={isQuranOpen} onClose={() => setIsQuranOpen(false)} />
       <HaditsPage isOpen={isHaditsOpen} onClose={() => setIsHaditsOpen(false)} />
