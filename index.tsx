@@ -4,7 +4,7 @@ import App from './App';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 interface ErrorBoundaryState {

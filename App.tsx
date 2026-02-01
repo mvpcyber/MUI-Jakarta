@@ -20,7 +20,9 @@ import {
   Copy,
   CheckCheck,
   Navigation,
-  BellRing
+  BellRing,
+  Star,
+  Moon
 } from 'lucide-react';
 import { QUICK_MENUS } from './constants';
 import FullMenuModal from './components/FullMenuModal';
@@ -349,6 +351,24 @@ const App: React.FC = () => {
     }
   };
 
+  // Hitung Mundur Ramadhan
+  const daysToRamadan = useMemo(() => {
+    const today = new Date();
+    // Estimasi 1 Ramadhan 2025 = 1 Maret 2025 (Perlu penyesuaian tahunan atau algoritma hijriah komplek)
+    // Disini kita hardcode target estimasi untuk 2025
+    let target = new Date(2025, 2, 1); // Bulan 2 = Maret
+    
+    // Jika lewat, set ke tahun depan (kira-kira mundur 11 hari per tahun masehi)
+    if (today > target) {
+       target = new Date(2026, 1, 18); // Estimasi 2026
+    }
+    
+    const diff = target.getTime() - today.getTime();
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return days > 0 ? days : 0;
+  }, []);
+
+
   // Fungsi mengambil jadwal sholat berdasarkan koordinat (Method 20 = Kemenag RI)
   const fetchPrayerTimesByCoords = useCallback(async (lat: number, lng: number, cityDisplayName: string) => {
     try {
@@ -584,6 +604,39 @@ const App: React.FC = () => {
            </div>
         )}
 
+        {/* Ramadhan Countdown Card */}
+        <div className="bg-gradient-to-br from-[#00a896] to-emerald-700 rounded-[32px] p-6 shadow-xl shadow-teal-900/10 mb-6 relative overflow-hidden group">
+          {/* Pattern & Ornaments */}
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
+          <div className="absolute -right-6 -bottom-6 opacity-20 text-white">
+             <Star size={100} />
+          </div>
+          <div className="absolute -left-6 -top-6 opacity-10 text-white">
+             <Moon size={80} />
+          </div>
+
+          <div className="relative z-10 flex items-center justify-between">
+             <div className="flex flex-col">
+                <div className="flex items-center space-x-2 mb-1">
+                   <span className="bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-widest border border-white/10">
+                     1446 H
+                   </span>
+                </div>
+                <h3 className="text-white text-lg font-medium leading-tight mb-2">Menuju Bulan Suci <br/><span className="font-black text-2xl">Ramadhan</span></h3>
+                
+                <div className="flex items-baseline space-x-1.5 mt-1">
+                   <span className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">{daysToRamadan}</span>
+                   <span className="text-sm font-bold text-teal-100">Hari Lagi</span>
+                </div>
+             </div>
+
+             <div className="w-24 h-24 bg-white/10 rounded-full flex items-center justify-center border-4 border-white/10 shadow-lg relative shrink-0">
+                <div className="absolute inset-0 bg-white/20 blur-xl rounded-full"></div>
+                <img src="https://m.muijakarta.or.id/img/puasa.png" alt="Ramadhan" className="w-16 h-16 object-contain drop-shadow-md relative z-10" />
+             </div>
+          </div>
+        </div>
+
         {/* Quote Hari Ini Card */}
         <div 
           onClick={handleCopyQuote}
@@ -749,7 +802,7 @@ const App: React.FC = () => {
       <PrayerPage isOpen={isPrayerPageOpen} onClose={() => setIsPrayerPageOpen(false)} schedule={prayerSchedule} location={locationName} nextPrayer={nextPrayer} />
       <QuranPage isOpen={isQuranOpen} onClose={() => setIsQuranOpen(false)} />
       <HaditsPage isOpen={isHaditsOpen} onClose={() => setIsHaditsOpen(false)} />
-      <KiblatPage isOpen={isKiblatOpen} onClose={() => setIsKiblatOpen(false)} />
+      <KiblatPage isOpen={isKiblatOpen} onClose={() => setIsKiblatOpen(false)} locationName={locationName} />
       <HalalPage isOpen={isHalalOpen} onClose={() => setIsHalalOpen(false)} />
       
       {/* New Pages */}
