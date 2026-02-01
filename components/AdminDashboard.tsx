@@ -13,7 +13,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [history, setHistory] = useState<NotificationItem[]>([]);
   const [success, setSuccess] = useState('');
 
+  // Initial load to show history list
   useEffect(() => {
+    refreshHistory();
+  }, []);
+
+  const refreshHistory = () => {
     const saved = localStorage.getItem('mui_notifications');
     if (saved) {
       try {
@@ -22,11 +27,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         setHistory([]);
       }
     }
-  }, []);
+  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !message) return;
+
+    // 1. PENTING: Ambil data terbaru dari localStorage sesaat sebelum update
+    // Ini mencegah Admin menimpa data notifikasi (seperti jadwal sholat) yang mungkin masuk saat Admin sedang idle
+    let currentData: NotificationItem[] = [];
+    const saved = localStorage.getItem('mui_notifications');
+    if (saved) {
+      try {
+        currentData = JSON.parse(saved);
+      } catch (e) {
+        currentData = [];
+      }
+    }
 
     const newNotif: any = {
       id: Date.now(),
@@ -38,11 +55,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       isNewBroadcast: true // Flag untuk mentrigger push notif di sisi user
     };
 
-    const updatedHistory = [newNotif, ...history];
-    setHistory(updatedHistory);
+    const updatedHistory = [newNotif, ...currentData];
     
-    // Simpan ke LocalStorage agar Client App bisa membacanya
+    // 2. Simpan ke LocalStorage
     localStorage.setItem('mui_notifications', JSON.stringify(updatedHistory));
+    
+    // 3. Update state UI Admin
+    setHistory(updatedHistory);
 
     setSuccess('Notifikasi berhasil dikirim!');
     setTitle('');
