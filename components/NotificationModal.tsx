@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Bell, X, CheckCheck, Clock, FileText, Trash2, BellOff, BellRing } from 'lucide-react';
+import { Bell, X, CheckCheck, Clock, FileText, Trash2, BellOff, BellRing, ChevronDown, ChevronUp } from 'lucide-react';
 
 export interface NotificationItem {
   id: number;
@@ -27,6 +26,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
   onMarkAllRead
 }) => {
   const [permission, setPermission] = useState<NotificationPermission>('default');
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -44,12 +44,20 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
     });
   };
 
+  const toggleExpand = (id: number) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(id);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[250] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-16 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-md mx-4 rounded-[24px] overflow-hidden shadow-2xl animate-in slide-in-from-top-5 duration-300">
-        <div className="bg-[#00a896] p-4 flex justify-between items-center">
+      <div className="bg-white w-full max-w-md mx-4 rounded-[24px] overflow-hidden shadow-2xl animate-in slide-in-from-top-5 duration-300 flex flex-col max-h-[80vh]">
+        <div className="bg-[#00a896] p-4 flex justify-between items-center shrink-0">
           <div className="flex items-center space-x-2 text-white">
             <Bell size={20} />
             <h3 className="font-bold">Notifikasi</h3>
@@ -60,7 +68,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         </div>
         
         {permission !== 'granted' && (
-           <div className="p-4 bg-orange-50 border-b border-orange-100 flex items-start space-x-3">
+           <div className="p-4 bg-orange-50 border-b border-orange-100 flex items-start space-x-3 shrink-0">
               <div className="p-2 bg-orange-100 rounded-full text-orange-600 shrink-0">
                  <BellRing size={18} />
               </div>
@@ -77,7 +85,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
            </div>
         )}
 
-        <div className="max-h-[60vh] overflow-y-auto bg-[#f8fafc] min-h-[300px]">
+        <div className="overflow-y-auto bg-[#f8fafc] flex-1">
           {notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -87,31 +95,49 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
               <p className="text-xs text-gray-400 mt-1">Anda akan menerima info penting di sini.</p>
             </div>
           ) : (
-            notifications.map((notif) => (
-              <div key={notif.id} className={`p-4 border-b border-gray-100 flex space-x-3 transition-colors ${notif.read ? 'bg-white' : 'bg-blue-50/50'}`}>
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'prayer' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'}`}>
-                   {notif.type === 'prayer' ? <Clock size={18} /> : <FileText size={18} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className={`text-sm font-bold truncate pr-2 ${notif.read ? 'text-gray-700' : 'text-gray-900'}`}>{notif.title}</h4>
-                    <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 pr-6">{notif.desc}</p>
-                </div>
-                <button 
-                  onClick={() => onRemove(notif.id)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 active:scale-90 transition-all shrink-0 self-center"
+            notifications.map((notif) => {
+              const isExpanded = expandedId === notif.id;
+              return (
+                <div 
+                  key={notif.id} 
+                  className={`p-4 border-b border-gray-100 flex space-x-3 transition-all cursor-pointer ${notif.read ? 'bg-white' : 'bg-blue-50/50'}`}
+                  onClick={() => toggleExpand(notif.id)}
                 >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            ))
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'prayer' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-600'}`}>
+                     {notif.type === 'prayer' ? <Clock size={18} /> : <FileText size={18} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className={`text-sm font-bold truncate pr-2 ${notif.read ? 'text-gray-700' : 'text-gray-900'}`}>{notif.title}</h4>
+                      <span className="text-[10px] text-gray-400 whitespace-nowrap">{notif.time}</span>
+                    </div>
+                    
+                    <div className={`text-xs text-gray-500 leading-relaxed ${isExpanded ? '' : 'line-clamp-2'} pr-2`}>
+                      {notif.desc}
+                    </div>
+                    
+                    {/* Expand Indicator */}
+                    <div className="flex justify-center mt-1">
+                       {isExpanded ? <ChevronUp size={14} className="text-gray-300" /> : <ChevronDown size={14} className="text-gray-300" />}
+                    </div>
+                  </div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemove(notif.id);
+                    }}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-500 active:scale-90 transition-all shrink-0 self-start"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              );
+            })
           )}
         </div>
         
         {notifications.length > 0 && (
-          <div className="p-3 bg-white border-t border-gray-100">
+          <div className="p-3 bg-white border-t border-gray-100 shrink-0">
             <button 
               onClick={onMarkAllRead}
               className="text-[10px] font-black text-[#00a896] uppercase tracking-widest flex items-center justify-center w-full py-2 hover:bg-gray-50 rounded-xl transition-colors active:scale-95"

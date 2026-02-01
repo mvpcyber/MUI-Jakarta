@@ -16,12 +16,6 @@ export interface FirebaseConfigType {
 const LOCAL_STORAGE_KEY = 'mui_firebase_config';
 
 // --- KONFIGURASI FIREBASE ---
-// 1. Buka https://console.firebase.google.com/
-// 2. Buat Project / Buka Project yang ada
-// 3. Masuk ke Project Settings > General > Your apps > Web App
-// 4. Salin config "firebaseConfig" dan tempel di bawah ini menggantikan nilai default.
-// 5. Pastikan Realtime Database Rules diatur ke ".read": true, ".write": true (atau sesuai kebutuhan keamanan)
-
 const defaultConfig: FirebaseConfigType = {
   apiKey: "AIzaSyBVi6MUBod6aPIDNDu7I9kDaxkcnqteo0c",
   authDomain: "mui-jakarta.firebaseapp.com",
@@ -41,10 +35,25 @@ export const getFirebaseConfig = (): FirebaseConfigType => {
       const parsed = JSON.parse(stored);
       // Validasi sederhana: Jika API Key tersimpan valid (bukan placeholder)
       if (parsed.apiKey && !parsed.apiKey.includes("ISI_API_KEY")) {
-        return parsed;
+        // FIX: Pastikan databaseURL tidak kosong dan valid (starts with http).
+        let dbUrl = parsed.databaseURL;
+        if (typeof dbUrl !== 'string' || dbUrl.trim().length < 10 || !dbUrl.trim().startsWith('http')) {
+            // Jika URL di storage invalid/kosong, gunakan default
+            dbUrl = defaultConfig.databaseURL;
+        } else {
+            dbUrl = dbUrl.trim();
+        }
+        
+        return { 
+            ...defaultConfig, 
+            ...parsed,
+            databaseURL: dbUrl
+        };
       }
     } catch (e) {
       console.error("Error parsing stored config", e);
+      // Jika corrupt, hapus agar kembali ke default bersih
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }
   // Prioritas 2: Gunakan Config Hardcoded di atas
@@ -64,7 +73,6 @@ export const resetFirebaseConfig = () => {
 const currentConfig = getFirebaseConfig();
 
 // Cek apakah config sudah diisi (bukan placeholder default)
-// Logika: Dianggap configured jika apiKey cukup panjang (>20 char) dan tidak mengandung kata 'ISI_API_KEY'
 const isConfigured = currentConfig.apiKey.length > 20 && 
                      !currentConfig.apiKey.includes("ISI_API_KEY");
 
@@ -73,19 +81,36 @@ let db: any;
 
 if (isConfigured) {
   try {
-    // Singleton pattern to prevent re-initialization errors
+    // Singleton pattern
     if (!getApps().length) {
       app = initializeApp(currentConfig);
     } else {
       app = getApp();
     }
-    db = getDatabase(app);
-    console.log("Firebase Database Initialized:", currentConfig.databaseURL);
+    
+    // Inisialisasi Database dengan Error Handling yang Kuat
+    // Error "Service database is not available" terjadi jika URL kosong/invalid passed ke getDatabase
+    try {
+        const dbUrl = currentConfig.databaseURL;
+        if (dbUrl && dbUrl.startsWith('http')) {
+             db = getDatabase(app, dbUrl);
+             console.log("Firebase Database Initialized with URL:", dbUrl);
+        } else {
+             // Fallback: Biarkan SDK menggunakan URL dari initializeApp options
+             db = getDatabase(app);
+             console.log("Firebase Database Initialized (Default URL)");
+        }
+    } catch (dbError) {
+        console.error("FATAL: Firebase Database Service failed to initialize.", dbError);
+        // Kita tangkap error agar aplikasi tidak crash total (White Screen)
+        // Fitur notifikasi realtime akan non-aktif, tapi fitur lain tetap jalan.
+    }
+    
   } catch (error) {
     console.error("Firebase Initialization Error:", error);
   }
 } else {
-  console.warn("Firebase belum dikonfigurasi. Silakan isi firebaseConfig.ts atau gunakan Admin Panel.");
+  console.warn("Firebase belum dikonfigurasi.");
 }
 
 export { db, isConfigured };

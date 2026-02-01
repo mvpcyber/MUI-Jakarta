@@ -9,7 +9,7 @@ interface AdminDashboardProps {
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
-  // LOGIC: Default ke 'settings' jika belum dikonfigurasi, agar admin langsung melihat formnya
+  // LOGIC: Default ke 'settings' jika belum dikonfigurasi
   const [activeTab, setActiveTab] = useState<'notifications' | 'settings'>(!isConfigured ? 'settings' : 'notifications');
   
   // Notification State
@@ -26,27 +26,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   useEffect(() => {
     if (!dbStatus || !db) return;
 
-    const historyRef = ref(db, 'notifications');
-    
-    // Realtime Listener
-    const unsubscribe = onValue(historyRef, (snapshot: DataSnapshot) => {
-       const data = snapshot.val();
-       if (data) {
-          // Convert Object to Array & Reverse (Newest First)
-          const list = Object.values(data) as NotificationItem[];
-          list.sort((a, b) => b.id - a.id);
-          setHistory(list);
-       } else {
-          setHistory([]);
-       }
-    }, (error) => {
-        console.error("Firebase read error", error);
-        if (error.message.includes('permission_denied')) {
-            alert("Izin Database Ditolak. Pastikan Rules Firebase diset ke '.read': true, '.write': true");
-        }
-    });
-
-    return () => unsubscribe();
+    try {
+        const historyRef = ref(db, 'notifications');
+        const unsubscribe = onValue(historyRef, (snapshot: DataSnapshot) => {
+           const data = snapshot.val();
+           if (data) {
+              const list = Object.values(data) as NotificationItem[];
+              list.sort((a, b) => b.id - a.id);
+              setHistory(list);
+           } else {
+              setHistory([]);
+           }
+        }, (error) => {
+            console.error("Firebase read error", error);
+        });
+        return () => unsubscribe();
+    } catch (e) {
+        console.error("Error connecting to DB listener", e);
+    }
   }, [dbStatus]);
 
   const handleSend = async (e: React.FormEvent) => {
@@ -69,13 +66,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     };
 
     try {
-       // Kirim ke Firebase
        await push(ref(db, 'notifications'), newNotif);
-       
        setSuccess('Notifikasi terkirim ke server!');
        setTitle('');
        setMessage('');
-       
        setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
        console.error(err);
@@ -93,6 +87,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   const handleSaveConfig = (e: React.FormEvent) => {
       e.preventDefault();
+      // Validasi sederhana URL
+      if(!configForm.databaseURL || configForm.databaseURL.length < 10) {
+          alert("Database URL tidak valid!");
+          return;
+      }
       saveFirebaseConfig(configForm);
       alert("Konfigurasi disimpan. Halaman akan dimuat ulang.");
       window.location.reload();

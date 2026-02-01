@@ -136,17 +136,6 @@ const App: React.FC = () => {
   // Menggunakan timestamp saat app dibuka sebagai batas bawah notifikasi realtime
   const appLaunchTimeRef = useRef<number>(Date.now());
 
-  // --- FORCE PWA UPDATE LOGIC ---
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
-          registration.unregister();
-        }
-      }).catch(err => console.debug("SW cleanup:", err));
-    }
-  }, []);
-
   // --- Check Admin Mode on Mount ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -262,24 +251,43 @@ const App: React.FC = () => {
 
   // --- Logic Push Notification Browser & In-App ---
   const sendNotification = useCallback((title: string, body: string, isFromAdmin = false) => {
+    // 1. Play Sound (Manual Audio API)
+    try {
+      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.log('Audio autoplay blocked by browser policy:', error);
+        });
+      }
+    } catch (e) {
+      console.warn("Audio play failed", e);
+    }
+
+    // 2. Show System Notification (Status Bar)
     if ("Notification" in window && Notification.permission === "granted") {
-      try {
-        const notif = new Notification(title, {
-          body: body,
-          icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-          badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
-          vibrate: [200, 100, 200],
-          tag: isFromAdmin ? `admin-${Date.now()}` : title
-        } as any);
-        
-        // Handle klik notifikasi
-        notif.onclick = function() {
-            window.focus();
-            notif.close();
-            setIsNotifOpen(true); // Buka modal notifikasi saat diklik
-        };
-      } catch (e) {
-        console.warn("Browser notification failed", e);
+      
+      const options = {
+        body: body,
+        icon: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+        badge: "https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png",
+        vibrate: [200, 100, 200],
+        tag: isFromAdmin ? `admin-${Date.now()}` : title,
+        data: { url: window.location.href },
+        renotify: true, // Force sound/vibration even if tag exists
+        requireInteraction: true // Keep visible until user interaction
+      };
+
+      // Try Service Worker registration (Required for Status Bar on Android)
+      if ('serviceWorker' in navigator) {
+         navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(title, options);
+         }).catch(err => {
+            console.warn("SW notification failed, falling back", err);
+            new Notification(title, options as any);
+         });
+      } else {
+         new Notification(title, options as any);
       }
     }
   }, []);
