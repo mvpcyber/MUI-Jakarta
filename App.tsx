@@ -136,6 +136,49 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const appLaunchTimeRef = useRef<number>(Date.now());
 
+  // --- AUTOMATIC UPDATE CHECK ---
+  useEffect(() => {
+    const checkVersion = async () => {
+      const storedVersion = localStorage.getItem('mui_app_version');
+      
+      // Jika versi berbeda dengan yang sedang berjalan (Update Baru)
+      if (storedVersion && storedVersion !== appVersion) {
+        console.log(`[App] New version detected: ${storedVersion} -> ${appVersion}. Updating...`);
+        
+        // 1. Clear Browser Caches
+        if ('caches' in window) {
+          try {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+            console.log('[App] Caches cleared.');
+          } catch (e) { console.error("Cache clear error", e); }
+        }
+
+        // 2. Unregister Service Workers
+        if ('serviceWorker' in navigator) {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            for (const registration of registrations) {
+              await registration.unregister();
+            }
+            console.log('[App] SW unregistered.');
+          } catch (e) { console.error("SW unregister error", e); }
+        }
+
+        // 3. Update Stored Version
+        localStorage.setItem('mui_app_version', appVersion);
+
+        // 4. Force Reload
+        window.location.reload();
+      } else if (!storedVersion) {
+        // First install or local storage cleared
+        localStorage.setItem('mui_app_version', appVersion);
+      }
+    };
+
+    checkVersion();
+  }, [appVersion]);
+
   // --- Check Admin Mode on Mount ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);

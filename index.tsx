@@ -60,16 +60,34 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// Register Service Worker
+// Register Service Worker with Aggressive Update Logic
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then(registration => {
         console.log('SW Registered:', registration);
+        
+        // Immediately check for updates
+        registration.update();
+
+        // Check for updates every 10 minutes
+        setInterval(() => {
+          registration.update();
+        }, 10 * 60 * 1000);
+
       })
       .catch(err => {
         console.log('SW Registration Failed:', err);
       });
+
+    // Reload page when new SW takes control (Updated)
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
   });
 }
 
