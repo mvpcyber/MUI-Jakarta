@@ -2,70 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, ShieldCheck } from 'lucide-react';
 
-const InstallPwaModal: React.FC = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
+interface InstallPwaModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onInstall: () => void;
+  isIOS: boolean;
+}
 
-  useEffect(() => {
-    // 1. Cek apakah ini iOS
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    setIsIOS(isIosDevice);
-
-    // 2. Cek apakah sudah mode standalone (sudah diinstall)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
-    
-    if (isStandalone) {
-      return; // Jangan tampilkan jika sudah diinstall
-    }
-
-    // 3. Handler untuk Android/Chrome (Native Install Prompt)
-    const handleBeforeInstallPrompt = (e: any) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      // Tampilkan modal setelah delay sedikit agar tidak mengganggu loading awal
-      setTimeout(() => setIsVisible(true), 3000);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // 4. Logika Khusus iOS (Tampilkan instruksi manual karena iOS tidak support beforeinstallprompt)
-    if (isIosDevice && !isStandalone) {
-        // Tampilkan modal setelah delay
-        setTimeout(() => setIsVisible(true), 3000);
-    }
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
-
-    // Show the install prompt
-    deferredPrompt.prompt();
-
-    // Wait for the user to respond to the prompt
-    const { outcome } = await deferredPrompt.userChoice;
-    
-    if (outcome === 'accepted') {
-      setIsVisible(false);
-    }
-    setDeferredPrompt(null);
-  };
-
-  const handleClose = () => {
-    setIsVisible(false);
-  };
-
-  if (!isVisible) return null;
+const InstallPwaModal: React.FC<InstallPwaModalProps> = ({ isOpen, onClose, onInstall, isIOS }) => {
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[250] flex items-center justify-center px-4 animate-in fade-in duration-500">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={handleClose}></div>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose}></div>
       
       {/* Centered Modal Content */}
       <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-300 transform transition-all">
@@ -74,7 +24,7 @@ const InstallPwaModal: React.FC = () => {
         <div className="absolute bottom-0 left-0 w-24 h-24 bg-orange-50 rounded-tr-[80px] -ml-6 -mb-6 pointer-events-none opacity-60"></div>
 
         <button 
-          onClick={handleClose}
+          onClick={onClose}
           className="absolute top-4 right-4 p-2 bg-gray-50 rounded-full text-gray-400 hover:bg-gray-100 z-20 transition-colors"
         >
           <X size={20} />
@@ -111,7 +61,7 @@ const InstallPwaModal: React.FC = () => {
           ) : (
             <div className="w-full space-y-3">
                 <button 
-                    onClick={handleInstallClick}
+                    onClick={onInstall}
                     className="w-full bg-[#00a896] text-white py-3.5 rounded-xl text-sm font-black uppercase tracking-widest shadow-lg shadow-teal-200 active:scale-95 transition-all flex items-center justify-center space-x-2"
                 >
                     <Download size={18} />
@@ -122,7 +72,7 @@ const InstallPwaModal: React.FC = () => {
           
           {!isIOS && (
             <button 
-                onClick={handleClose}
+                onClick={onClose}
                 className="mt-3 py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
             >
                 Nanti Saja
