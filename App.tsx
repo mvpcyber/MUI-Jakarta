@@ -39,6 +39,7 @@ import AdminDashboard from './components/AdminDashboard';
 import { ref, onChildAdded, limitToLast, query, push, set, update } from 'firebase/database';
 import { db } from './firebaseConfig';
 
+// Define the global version constant provided by Vite
 declare const __APP_VERSION__: string;
 
 export interface PrayerSchedule {
@@ -74,6 +75,8 @@ const SplashScreen: React.FC = () => (
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Ambil versi dari konstanta global Vite yang terhubung ke package.json
   const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0';
   
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -424,28 +427,29 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* FIXED BOTTOM NAVIGATION BAR - RESPONSIVE OPTIMIZATION */}
+      {/* FLOATING NAVIGATION BAR - OPTIMIZED GRID LAYOUT */}
       <div className="fixed bottom-0 left-0 right-0 z-[200] px-4 pb-[env(safe-area-inset-bottom,20px)]">
-        <nav className="max-w-md mx-auto bg-white/95 backdrop-blur-xl border border-gray-200/50 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] grid grid-cols-5 items-end h-[76px] px-2 rounded-[32px] mb-4 relative">
+        <nav className="max-w-md mx-auto bg-white/95 backdrop-blur-xl border border-gray-200/50 shadow-[0_-15px_40px_rgba(0,0,0,0.08)] grid grid-cols-5 items-center h-[76px] px-1 rounded-[32px] mb-4 relative">
           
-          {/* Left Side Buttons */}
-          <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
-            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+          {/* Ikon Video */}
+          <button onClick={() => setIsVideoOpen(true)} className="flex flex-col items-center justify-center h-full group">
+            <div className="p-1 rounded-xl transition-all group-active:scale-90">
               <img src="https://m.muijakarta.or.id/img/video.png" alt="Video" className="w-6 h-6 object-contain opacity-60 group-hover:opacity-100" />
             </div>
-            <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Video</span>
+            <span className="text-[9px] font-bold uppercase tracking-wide text-gray-400 mt-0.5">Video</span>
           </button>
           
+          {/* Ikon Fatwa */}
           <button onClick={() => setIsFatwaOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
-            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+            <div className="p-1 rounded-xl transition-all group-active:scale-90">
               <FileText size={22} className="opacity-60 group-hover:opacity-100" />
             </div>
             <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Fatwa</span>
           </button>
 
-          {/* Center Raised Button Slot */}
-          <div className="relative flex flex-col items-center h-full">
-            <div className="absolute -top-8 w-16 h-16 bg-[#f8fafc] rounded-full flex items-center justify-center">
+          {/* Kolom Tengah (Beranda & Versi) */}
+          <div className="relative flex flex-col items-center justify-center h-full">
+            <div className="absolute -top-10 w-16 h-16 bg-[#f8fafc] rounded-full flex items-center justify-center border-none">
               <button 
                 onClick={closeAllPages} 
                 className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-white active:scale-90 transition-transform"
@@ -453,22 +457,23 @@ const App: React.FC = () => {
                 <Home size={26} fill="white" />
               </button>
             </div>
-            <div className="mt-auto pb-3 flex flex-col items-center">
+            <div className="mt-8 flex flex-col items-center">
               <span className="text-[9px] font-black uppercase tracking-widest text-[#00a896]">Beranda</span>
               <span className="text-[7px] font-medium text-gray-400 leading-none">V {appVersion}</span>
             </div>
           </div>
 
-          {/* Right Side Buttons */}
+          {/* Ikon Kalender */}
           <button onClick={() => setIsCalendarOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
-            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+            <div className="p-1 rounded-xl transition-all group-active:scale-90">
               <CalendarIcon size={22} className="opacity-60 group-hover:opacity-100" />
             </div>
             <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Kalender</span>
           </button>
           
+          {/* Ikon Profil */}
           <button onClick={() => setIsProfileOpen(true)} className="flex flex-col items-center justify-center h-full group text-gray-400">
-            <div className="p-1.5 rounded-xl transition-all group-active:scale-90">
+            <div className="p-1 rounded-xl transition-all group-active:scale-90">
               <User size={22} className="opacity-60 group-hover:opacity-100" />
             </div>
             <span className="text-[9px] font-bold uppercase tracking-wide opacity-80 mt-0.5">Profil</span>

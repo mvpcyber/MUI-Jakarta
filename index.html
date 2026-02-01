@@ -1,42 +1,22 @@
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- Anti-Cache Meta Tags (Force Update) -->
+    <!-- Anti-Cache Meta Tags -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
 
     <title>MUI Jakarta - Pelayan Ummat</title>
-    <meta name="description" content="Aplikasi Resmi Majelis Ulama Indonesia Provinsi DKI Jakarta. Info Fatwa, Jadwal Sholat, dan Berita Terkini.">
     
-    <!-- Open Graph / Facebook / WA Preview -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://m.muijakarta.or.id/">
-    <meta property="og:title" content="MUI Jakarta - Pelayan Ummat">
-    <meta property="og:description" content="Aplikasi Resmi MUI DKI Jakarta. Akses Jadwal Sholat, Al-Quran, Fatwa, dan Berita Terkini.">
-    <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png">
-
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="MUI Jakarta - Pelayan Ummat">
-    <meta property="twitter:description" content="Aplikasi Resmi MUI DKI Jakarta.">
-    <meta property="twitter:image" content="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png">
-
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png">
     
-    <!-- PWA & Mobile Meta -->
-    <meta name="theme-color" content="#00827f">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="MUI Jakarta">
-    <link rel="apple-touch-icon" href="https://upload.wikimedia.org/wikipedia/commons/c/c0/Logo-MUI-Jakarta.png">
-    
-    <!-- Force Manifest Refresh with Query Param -->
-    <link rel="manifest" href="/manifest.json?v=3">
+    <!-- Leaflet CSS for Map Tracking -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -48,25 +28,34 @@
             user-select: none;
             overflow-x: hidden;
         }
-        .bg-mui-teal {
-            background-color: #00827f;
-        }
+        .bg-mui-teal { background-color: #00827f; }
         .islamic-bg {
             background-image: url("https://static.vecteezy.com/system/resources/thumbnails/006/762/753/small_2x/islamic-background-for-ramadan-or-eid-vector.jpg");
             background-size: cover;
             background-position: center;
         }
+        ::-webkit-scrollbar { width: 0px; }
         
-        ::-webkit-scrollbar {
-            width: 0px;
+        /* Pulse Animation for Online Users on Map */
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
         }
-        
-        .fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
+        .online-pulse {
+            animation: pulse-green 2s infinite;
+            border-radius: 50%;
+            background: #22c55e;
+            width: 12px;
+            height: 12px;
+            border: 2px solid white;
         }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
+        .offline-dot {
+            border-radius: 50%;
+            background: #9ca3af;
+            width: 10px;
+            height: 10px;
+            border: 2px solid white;
         }
     </style>
 <script type="importmap">
@@ -85,6 +74,8 @@
   }
 }
 </script>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
     <div id="root"></div>
