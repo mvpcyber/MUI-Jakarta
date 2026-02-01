@@ -5,7 +5,7 @@ import {
   Home, 
   BookOpen, 
   FileText, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   Settings, 
   Bell, 
   Loader2, 
@@ -34,6 +34,7 @@ import HalalPage from './components/HalalPage';
 import FatwaPage from './components/FatwaPage';
 import NewsPage from './components/NewsPage';
 import MosquePage from './components/MosquePage';
+import CalendarPage from './components/CalendarPage';
 import SearchModal from './components/SearchModal';
 import NotificationModal, { NotificationItem } from './components/NotificationModal';
 import InfoModal from './components/InfoModal';
@@ -106,6 +107,7 @@ const App: React.FC = () => {
   const [isFatwaOpen, setIsFatwaOpen] = useState(false);
   const [isNewsOpen, setIsNewsOpen] = useState(false);
   const [isMosqueOpen, setIsMosqueOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   
   // News Detail State
   const [isNewsDetailOpen, setIsNewsDetailOpen] = useState(false);
@@ -771,7 +773,7 @@ const App: React.FC = () => {
                 // Beranda logic: Close all modals to reveal main content
                 setIsQuranOpen(false); setIsFatwaOpen(false); setIsPrayerPageOpen(false);
                 setIsHaditsOpen(false); setIsKiblatOpen(false); setIsHalalOpen(false); setIsNewsOpen(false);
-                setIsMosqueOpen(false);
+                setIsMosqueOpen(false); setIsCalendarOpen(false);
              }}
              className="w-14 h-14 bg-[#00a896] rounded-full flex items-center justify-center text-white shadow-lg shadow-teal-500/40 border-4 border-[#f8fafc] active:scale-90 transition-transform"
            >
@@ -782,7 +784,7 @@ const App: React.FC = () => {
 
         {/* Right Side */}
         <div className="flex-1 flex justify-between pl-4 pb-1">
-          <NavButton icon={<Clock size={20} />} label="Jadwal" onClick={() => setIsPrayerPageOpen(true)} />
+          <NavButton icon={<CalendarIcon size={20} />} label="Kalender" onClick={() => setIsCalendarOpen(true)} />
           <NavButton icon={<User size={20} />} label="Profil" onClick={() => setIsProfileOpen(true)} />
         </div>
       </nav>
@@ -809,6 +811,7 @@ const App: React.FC = () => {
       <FatwaPage isOpen={isFatwaOpen} onClose={() => setIsFatwaOpen(false)} />
       <NewsPage isOpen={isNewsOpen} onClose={() => setIsNewsOpen(false)} />
       <MosquePage isOpen={isMosqueOpen} onClose={() => setIsMosqueOpen(false)} />
+      <CalendarPage isOpen={isCalendarOpen} onClose={() => setIsCalendarOpen(false)} />
       
       <NewsDetailModal 
         isOpen={isNewsDetailOpen} 
