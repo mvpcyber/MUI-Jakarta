@@ -187,11 +187,11 @@ const App: React.FC = () => {
                 });
              }
           } catch (e) {
-             console.error("Tracking error", e);
+             console.error("Tracking error (Silent)", e);
           }
        }
     }
-  }, [isAdminMode, showSplash, locationName]); // Akan update saat lokasi terdeteksi (jika logic update ditambahkan, saat ini create once)
+  }, [isAdminMode, showSplash, locationName]); 
 
 
   // --- Logic PWA Install ---

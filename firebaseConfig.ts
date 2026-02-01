@@ -77,7 +77,7 @@ const isConfigured = currentConfig.apiKey.length > 20 &&
                      !currentConfig.apiKey.includes("ISI_API_KEY");
 
 let app;
-let db: any;
+let db: any = null;
 
 if (isConfigured) {
   try {
@@ -88,26 +88,21 @@ if (isConfigured) {
       app = getApp();
     }
     
-    // Inisialisasi Database dengan Error Handling yang Kuat
-    // Error "Service database is not available" terjadi jika URL kosong/invalid passed ke getDatabase
+    // Inisialisasi Database dengan Safe Handling
     try {
-        const dbUrl = currentConfig.databaseURL;
-        if (dbUrl && dbUrl.startsWith('http')) {
-             db = getDatabase(app, dbUrl);
-             console.log("Firebase Database Initialized with URL:", dbUrl);
-        } else {
-             // Fallback: Biarkan SDK menggunakan URL dari initializeApp options
-             db = getDatabase(app);
-             console.log("Firebase Database Initialized (Default URL)");
-        }
+        // Kita gunakan getDatabase(app) yang otomatis menggunakan databaseURL dari config initializeApp.
+        // Ini lebih aman daripada mempassing URL secara eksplisit yang bisa menyebabkan mismatch.
+        db = getDatabase(app);
+        console.log("Firebase Database Initialized Successfully");
     } catch (dbError) {
-        console.error("FATAL: Firebase Database Service failed to initialize.", dbError);
-        // Kita tangkap error agar aplikasi tidak crash total (White Screen)
-        // Fitur notifikasi realtime akan non-aktif, tapi fitur lain tetap jalan.
+        // Jika gagal (misal URL salah atau service tidak tersedia), kita set db ke null
+        // agar aplikasi tetap jalan (graceful degradation) tanpa crash FATAL.
+        console.warn("Warning: Firebase Realtime Database could not be initialized.", dbError);
+        db = null;
     }
     
   } catch (error) {
-    console.error("Firebase Initialization Error:", error);
+    console.error("Firebase App Initialization Error:", error);
   }
 } else {
   console.warn("Firebase belum dikonfigurasi.");
