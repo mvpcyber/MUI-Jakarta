@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { MapPin, Bell, ShieldCheck, CheckCircle, X, ChevronRight } from 'lucide-react';
+import { MapPin, Bell, ShieldCheck, CheckCircle, ChevronRight, AlertTriangle } from 'lucide-react';
 
 interface PermissionModalProps {
   isOpen: boolean;
@@ -13,6 +12,7 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
   const [notifStatus, setNotifStatus] = useState<NotificationPermission>('default');
   
   const [isRequesting, setIsRequesting] = useState(false);
+  const [deniedError, setDeniedError] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -31,11 +31,8 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
       try {
         const geoResult = await navigator.permissions.query({ name: 'geolocation' });
         setGeoStatus(geoResult.state);
-        
-        // Listen for changes
         geoResult.onchange = () => setGeoStatus(geoResult.state);
       } catch (e) {
-        // Fallback for browsers that don't support query name 'geolocation'
         setGeoStatus('prompt'); 
       }
     }
@@ -43,12 +40,14 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
 
   const handleRequestAll = async () => {
     setIsRequesting(true);
+    setDeniedError(false);
 
     try {
       // 1. Request Notification
       if (notifStatus !== 'granted') {
         const res = await Notification.requestPermission();
         setNotifStatus(res);
+        if (res === 'denied') setDeniedError(true);
       }
 
       // 2. Request Geolocation
@@ -56,14 +55,24 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
         await new Promise<void>((resolve) => {
           navigator.geolocation.getCurrentPosition(
             () => { setGeoStatus('granted'); resolve(); },
-            () => { setGeoStatus('denied'); resolve(); },
-            { timeout: 5000 }
+            () => { setGeoStatus('denied'); setDeniedError(true); resolve(); },
+            { timeout: 8000 }
           );
         });
       }
 
-      // Check if granted or user interact
-      onPermissionsGranted();
+      // Final Check
+      checkStatuses().then(() => {
+          if (Notification.permission === 'granted' || geoStatus === 'granted') {
+             onPermissionsGranted();
+          } else {
+             if (Notification.permission === 'denied' && geoStatus === 'denied') {
+                 setDeniedError(true);
+             } else {
+                 setDeniedError(true);
+             }
+          }
+      });
       
     } catch (error) {
       console.error("Permission error", error);
@@ -74,82 +83,88 @@ const PermissionModal: React.FC<PermissionModalProps> = ({ isOpen, onClose, onPe
 
   const allGranted = notifStatus === 'granted' && geoStatus === 'granted';
 
+  // Automatically close if all granted
+  useEffect(() => {
+      if (allGranted && isOpen) {
+          setTimeout(() => onPermissionsGranted(), 500);
+      }
+  }, [allGranted, isOpen, onPermissionsGranted]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex items-center justify-center px-6 animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-md flex items-center justify-center px-6 animate-in fade-in duration-300">
       <div className="bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl relative animate-in zoom-in-95 duration-300">
         
         {/* Header Image / Decoration */}
-        <div className="bg-[#00a896] p-6 text-center relative overflow-hidden">
+        <div className="bg-[#00a896] p-8 text-center relative overflow-hidden">
           <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("https://www.transparenttextures.com/patterns/arabesque.png")' }}></div>
-          <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mx-auto mb-3 border border-white/20">
-             <ShieldCheck className="text-white" size={32} />
+          <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/20 shadow-lg">
+             <ShieldCheck className="text-white" size={40} />
           </div>
-          <h2 className="text-xl font-black text-white uppercase tracking-tight relative z-10">Izin Aplikasi</h2>
-          <p className="text-xs text-teal-100 font-medium relative z-10 mt-1">
-            Untuk pengalaman terbaik, mohon izinkan akses berikut:
+          <h2 className="text-2xl font-black text-white uppercase tracking-tight relative z-10">Akses Diperlukan</h2>
+          <p className="text-sm text-teal-100 font-medium relative z-10 mt-2 leading-relaxed">
+            Aplikasi ini membutuhkan akses Lokasi dan Notifikasi untuk fitur Jadwal Sholat & Kiblat.
           </p>
-          
-          <button 
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 bg-black/10 rounded-full text-white/70 hover:bg-black/20 hover:text-white transition-colors"
-          >
-            <X size={18} />
-          </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-5">
           {/* Location Item */}
           <div className="flex items-center space-x-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${geoStatus === 'granted' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {geoStatus === 'granted' ? <CheckCircle size={20} /> : <MapPin size={20} />}
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${geoStatus === 'granted' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+              {geoStatus === 'granted' ? <CheckCircle size={24} /> : <MapPin size={24} />}
             </div>
             <div className="flex-1">
               <h4 className="text-sm font-bold text-gray-800">Lokasi & GPS</h4>
-              <p className="text-[10px] text-gray-500">Untuk jadwal sholat akurat, arah kiblat, dan masjid terdekat.</p>
+              <p className="text-[10px] text-gray-500 leading-tight mt-0.5">Wajib untuk akurasi Waktu Sholat dan Arah Kiblat di daerah Anda.</p>
             </div>
           </div>
 
           {/* Notification Item */}
           <div className="flex items-center space-x-4">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${notifStatus === 'granted' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-              {notifStatus === 'granted' ? <CheckCircle size={20} /> : <Bell size={20} />}
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${notifStatus === 'granted' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
+              {notifStatus === 'granted' ? <CheckCircle size={24} /> : <Bell size={24} />}
             </div>
             <div className="flex-1">
               <h4 className="text-sm font-bold text-gray-800">Notifikasi</h4>
-              <p className="text-[10px] text-gray-500">Pengingat waktu sholat dan informasi fatwa terbaru.</p>
+              <p className="text-[10px] text-gray-500 leading-tight mt-0.5">Agar Anda tidak ketinggalan waktu ibadah dan info penting.</p>
             </div>
           </div>
         </div>
+
+        {deniedError && (
+            <div className="mx-6 mb-4 bg-red-50 border border-red-100 p-3 rounded-xl flex items-start space-x-2">
+                <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-red-600 font-bold leading-relaxed">
+                    Akses ditolak oleh browser. Silakan aktifkan izin Lokasi dan Notifikasi melalui Pengaturan Browser (Icon Gembok di URL bar).
+                </p>
+            </div>
+        )}
 
         <div className="p-6 pt-0">
           <button 
             onClick={handleRequestAll}
             disabled={isRequesting || allGranted}
-            className={`w-full py-4 rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2
+            className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center space-x-2
               ${allGranted 
                 ? 'bg-green-600 text-white shadow-green-200' 
-                : 'bg-[#00a896] text-white shadow-teal-200'
+                : 'bg-[#00a896] text-white shadow-teal-200 hover:bg-teal-700'
               }`}
           >
             {isRequesting ? (
               <span>Memproses...</span>
             ) : allGranted ? (
-              <><span>Semua Diizinkan</span> <CheckCircle size={16} /></>
+              <><span>Terima Kasih</span> <CheckCircle size={18} /></>
             ) : (
-              <><span>Izinkan Akses</span> <ChevronRight size={16} /></>
+              <><span>Aktifkan Semua</span> <ChevronRight size={18} /></>
             )}
           </button>
           
-          {!allGranted && (
-            <button 
-              onClick={onClose}
-              className="w-full mt-3 py-2 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              Nanti Saja (Fitur mungkin terbatas)
-            </button>
-          )}
+          <div className="mt-4 text-center">
+             <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">
+                MUI DKI Jakarta • Privasi Aman
+             </p>
+          </div>
         </div>
       </div>
     </div>

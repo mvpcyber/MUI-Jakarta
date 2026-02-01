@@ -42,7 +42,7 @@ import AdminLogin from './components/AdminLogin';
 import AdminDashboard from './components/AdminDashboard';
 
 // FIREBASE IMPORTS
-import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set } from 'firebase/database';
+import { ref, onChildAdded, limitToLast, query, orderByKey, DataSnapshot, push, set, update } from 'firebase/database';
 import { db } from './firebaseConfig';
 
 // --- Global Constant Declaration ---
@@ -120,6 +120,7 @@ const App: React.FC = () => {
   
   const [currentTime, setCurrentTime] = useState(new Date());
   const [locationName, setLocationName] = useState("Mendeteksi Lokasi...");
+  const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
   const [prayerSchedule, setPrayerSchedule] = useState<PrayerSchedule | null>(null);
 
   const sentNotificationsRef = useRef<Set<string>>(new Set());
@@ -157,41 +158,56 @@ const App: React.FC = () => {
     window.location.href = window.location.pathname;
   };
 
-  // --- SILENT BACKGROUND TRACKING (Tanpa Form) ---
+  // --- AUTOMATIC TRACKING (ANALYTICS & LIVE LOCATION) ---
   useEffect(() => {
     if (!isAdminMode && db && !showSplash) {
-       const storedUid = localStorage.getItem('mui_user_id');
-       // Hanya register jika belum punya ID, agar tidak duplikat setiap buka app
-       if (!storedUid) {
+       const logActivity = async () => {
+          const storedUid = localStorage.getItem('mui_user_id');
+          const timestamp = new Date().toISOString();
+          
+          const payload: any = {
+             lastActive: timestamp,
+             platform: navigator.platform || 'Unknown',
+             userAgent: navigator.userAgent,
+             location: locationName
+          };
+
+          // Tambahkan koordinat live jika tersedia
+          if (userCoords) {
+             payload.latitude = userCoords.lat;
+             payload.longitude = userCoords.lng;
+          }
+
           try {
-             const usersRef = ref(db, 'users');
-             const newUserRef = push(usersRef);
-             const uid = newUserRef.key;
-             
-             if (uid) {
-                // Simpan data dasar perangkat
-                const userData = {
-                   id: uid,
-                   platform: navigator.platform || 'Unknown',
-                   userAgent: navigator.userAgent,
-                   joinedAt: new Date().toISOString(),
-                   lastActive: new Date().toISOString(),
-                   location: locationName,
-                   name: "Guest User", // Default
-                   phoneNumber: "-" // Default
-                };
+             if (storedUid) {
+                // Update user yang sudah ada
+                const userRef = ref(db, `users/${storedUid}`);
+                await update(userRef, payload);
+             } else {
+                // Register user baru (Guest) secara otomatis
+                const usersRef = ref(db, 'users');
+                const newUserRef = push(usersRef);
+                const uid = newUserRef.key;
                 
-                set(newUserRef, userData).then(() => {
+                if (uid) {
+                   await set(newUserRef, {
+                      ...payload,
+                      id: uid,
+                      joinedAt: timestamp,
+                      name: "Guest User",
+                      phoneNumber: "-"
+                   });
                    localStorage.setItem('mui_user_id', uid);
-                   console.log("Guest tracking active");
-                });
+                }
              }
           } catch (e) {
-             console.error("Tracking error (Silent)", e);
+             console.error("Tracking Error:", e);
           }
-       }
+       };
+
+       logActivity();
     }
-  }, [isAdminMode, showSplash, locationName]); 
+  }, [isAdminMode, showSplash, locationName, userCoords]); // Trigger update saat lokasi/koordinat berubah
 
 
   // --- Logic PWA Install ---
@@ -242,12 +258,22 @@ const App: React.FC = () => {
     sessionStorage.setItem('pwa_install_dismissed', 'true');
   };
 
+  // --- FORCE MANDATORY PERMISSIONS ---
   const checkInitialPermissions = async () => {
-    let shouldShow = false;
-    if ('Notification' in window && Notification.permission !== 'granted') {
-      shouldShow = true;
+    // Cek Notifikasi
+    const notifNeeded = 'Notification' in window && Notification.permission !== 'granted';
+    
+    // Cek Geo (Simple check)
+    let geoNeeded = true;
+    if (navigator.permissions && navigator.permissions.query) {
+        try {
+            const geo = await navigator.permissions.query({ name: 'geolocation' });
+            if (geo.state === 'granted') geoNeeded = false;
+        } catch(e) {}
     }
-    if (shouldShow && !isAdminMode && !isInstallModalOpen) {
+
+    // Jika salah satu belum granted, tampilkan modal WAJIB (Kecuali admin)
+    if ((notifNeeded || geoNeeded) && !isAdminMode && !isInstallModalOpen) {
       setIsPermissionModalOpen(true);
     }
   };
@@ -540,6 +566,7 @@ const App: React.FC = () => {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude } = position.coords;
+          setUserCoords({ lat: latitude, lng: longitude }); // Save coords for tracking
           try {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10`);
             const data = await res.json();
