@@ -13,6 +13,26 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000, // Naikkan limit warning sedikit
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Pisahkan library besar ke chunk terpisah
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('firebase')) {
+              return 'firebase-vendor';
+            }
+            if (id.includes('lucide-react')) {
+              return 'ui-vendor';
+            }
+            return 'vendor'; // Sisa node_modules
+          }
+        }
+      }
+    }
   },
   server: {
     port: 3000,
